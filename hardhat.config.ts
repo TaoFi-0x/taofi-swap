@@ -57,7 +57,7 @@ const NETWORKS_RPC_URL = {
 
 module.exports = {
   paths: {
-    sources: "./contracts/src",
+    sources: "./contracts",
   },
   mocha: {
     timeout: 1200000,
@@ -150,20 +150,6 @@ module.exports = {
         },
       },
     ],
-  },
-  preprocess: {
-    eachLine: (hre) => ({
-      transform: (line: string) => {
-        if (line.match(/^\s*import /i)) {
-          getRemappings().forEach(([find, replace]) => {
-            if (line.match('"' + find)) {
-              line = line.replace('"' + find, '"' + replace);
-            }
-          });
-        }
-        return line;
-      },
-    }),
   },
   namedAccounts: {
     deployer: {
