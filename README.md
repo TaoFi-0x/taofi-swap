@@ -9,5 +9,7 @@
 
 ## Subtensor
 
-| taoUSD | `0x9bB4FC27453e04318bf968f2E994B47eDa8F724D` |
+| Contract            | Address                                      |
+| ------------------- | -------------------------------------------- |
+| taoUSD              | `0x9bB4FC27453e04318bf968f2E994B47eDa8F724D` |
 | HypeERC20EntryPoint | `0x8f9864c1f79eBC8aEc0949671aC0463bf40E5933` |
