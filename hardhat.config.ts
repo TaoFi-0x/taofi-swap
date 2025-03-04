@@ -15,6 +15,8 @@ import "hardhat-preprocessor";
 import "solidity-coverage";
 import "@openzeppelin/hardhat-upgrades";
 
+import "./hardhat/tasks";
+
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "";
 const LINEASCAN_API_KEY = process.env.LINEASCAN_API_KEY || "";
 const PK = process.env.PK;
@@ -77,6 +79,7 @@ module.exports = {
       chainId: 31337,
       saveDeployments: true,
       blockGasLimit: 30000000,
+      initialBaseFeePerGas: "10000000",
       gas: 30000000,
       allowUnlimitedContractSize: true,
       timeout: 1200000,
