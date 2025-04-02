@@ -12,27 +12,17 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   const { get, getArtifact, save, deploy } = deployments;
   const sTaoTaoUSDOracle = await getArtifact("STaoTaoUSDOracle");
   const sTaoUsdOracleAbi = sTaoTaoUSDOracle.abi;
+  const PYTH_TAO_USD_ORACLE = "0x2880aB155794e7179c9eE2e38200202908C17B43";
+  const TAO_USD_PRICE_FEED_ID = "0x410f41de235f2db824e562ea7ab2d3d3d4ff048316c61d629c0b93f58584e1af";
 
   const { deployer } = await getNamedAccounts();
-
-  await deploy("MockAPI3Feed", {
-    contract: "MockV3Aggregator",
-    from: deployer,
-    args: [
-      18, // decimals
-      "500000000000000000000", // initial price: 500 USD
-    ],
-    log: true,
-  });
-
-  const api3FeedAddress = (await get("MockAPI3Feed")).address;
 
   const STAO = await get("STAO");
 
   await deploy("TaousdSiloOracle", {
     contract: "STaoTaoUSDOracle",
     from: deployer,
-    args: [api3FeedAddress, STAO.address, 86400, 0, "TaousdSiloOracle"],
+    args: [PYTH_TAO_USD_ORACLE, TAO_USD_PRICE_FEED_ID, STAO.address, 86400, 0, "TaousdSiloOracle"],
     log: true,
   });
 

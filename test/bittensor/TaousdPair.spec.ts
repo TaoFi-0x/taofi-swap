@@ -123,7 +123,7 @@ describe("TaousdPair Contract", function () {
     ).to.be.not.eq(0);
     expect(await read("TaousdPair", "cleanLiquidationFee")).to.be.eq(10000);
     expect(await read("TaousdPair", "protocolLiquidationFee")).to.be.eq(0);
-    expect(await read("TaousdPair", "maxLTV")).to.be.eq(75000);
+    expect(await read("TaousdPair", "maxLTV")).to.be.eq(50000);
   });
 
   it("User1 deposits τUSD, User2 deposits TAO as collateral, borrows τUSD, then repays it", async () => {
@@ -141,8 +141,9 @@ describe("TaousdPair Contract", function () {
     const taousd = await ethers.getContractAt("Taousd", Taousd.address);
     console.log(await read("Taousd", "name"));
 
-    const amount = await convertToCurrencyDecimals(Taousd.address, 10000);
-    const collateralAmount = await convertToCurrencyDecimals(sTAO.address, 10);
+    const amount = await convertToCurrencyDecimals(Taousd.address, 100000);
+    const taoAmount = await ethers.utils.parseEther("10");
+    const collateralAmount = await read("STAO", "convertToShares", taoAmount, 0);
     const poolAddress = (await get("TaousdPair")).address;
 
     // prepare taousd
@@ -195,6 +196,8 @@ describe("TaousdPair Contract", function () {
     // Approve
     console.log("approving");
     await sTAO.connect(borrowerSigner).approve(poolAddress, collateralAmount);
+    let bal = await read("STAO", "balanceOf", borrower);
+    console.log(`sTAO balance: ${bal}`);
     // addCollateral
     console.log("depositting STAO to TaousdPair");
     await execute(
@@ -209,20 +212,20 @@ describe("TaousdPair Contract", function () {
     // Borrow taousd
     const exchangeRate = (await read("TaousdSiloOracle", "getPrices"))
       ._priceHigh;
-    // NOTE: we multiply by 1e30 due to the required precision of the oracle (this in fact due to the requirements of SturdyPairCore._isSolvent)
-    const borrowAmount = (await convertToCurrencyDecimals(taousd.address, 10))
-      .mul(ethers.utils.parseUnits("1", 30))
-      .div(exchangeRate)
-      .mul(75)
-      .div(100);
+    console.log(`exchange rate: ${exchangeRate}`);
+    // 50% LTV
+    const borrowAmount = (await convertToCurrencyDecimals(taousd.address, 1580))
     console.log(`borrowing: ${borrowAmount}`);
     await execute(
       "TaousdPair",
-      { from: borrower },
+      {
+        from: borrower,
+        gasLimit: 3000000
+      },
       "borrowAsset",
       borrowAmount,
       0,
-      borrower
+      borrower,
     );
     console.log("borrowed");
     //check borrower snapshot
@@ -243,7 +246,7 @@ describe("TaousdPair Contract", function () {
     expect(borrowerSnapShot._userCollateralBalance).to.be.eq(collateralAmount);
     expect(await taousd.balanceOf(borrower)).to.be.eq(borrowAmount);
 
-    // Borrow again but failed because of 75% LTV
+    // Borrow again but failed because of 50% LTV
     await expect(
       execute(
         "TaousdPair",

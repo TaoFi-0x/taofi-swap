@@ -1,7 +1,7 @@
-import { deployments, upgrades, ethers, artifacts } from "hardhat";
+import { deployments, upgrades, ethers, artifacts, getNamedAccounts } from "hardhat";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { DeployFunction } from "hardhat-deploy/types";
-const { save } = deployments;
+const { execute, get, save } = deployments;
 
 /* TODO:
  * - Create API3 Oracle Deployment script
@@ -10,6 +10,9 @@ const { save } = deployments;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   console.log(`Deploying STAO to ${hre.network.name}. Hit ctrl + c to abort`);
+
+
+  const { deployer } = await getNamedAccounts();
 
   const STAOFactory = await ethers.getContractFactory("STAO");
   const stao = await upgrades.deployProxy(STAOFactory, [], {
@@ -25,6 +28,10 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   });
 
   console.log(`STAO deployed to ${STAO.address}`);
+
+  const tempStakingPrecompileAddress = (await get("TempStakingPrecompile")).address;
+
+  await execute("STAO", { from: deployer }, "setStakingPrecompile", tempStakingPrecompileAddress);
 };
 
 export default func;
@@ -40,3 +47,4 @@ func.skip = async (hre: HardhatRuntimeEnvironment) => {
 };
 
 func.tags = ["STAO"];
+func.dependencies = ["TempStakingPrecompile"]

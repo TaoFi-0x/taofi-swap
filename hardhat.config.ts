@@ -38,7 +38,7 @@ function getRemappings() {
 
 const BLOCK_TO_FORK = {
   main: 21181130,
-  bittensor: 4600000,
+  bittensor: 5058160,
   btlocal: parseInt(BTLOCAL_RPC_URL),
   mode: 7464010,
   linea: 4579590,
@@ -49,7 +49,7 @@ const BLOCK_TO_FORK = {
 const NETWORKS_RPC_URL = {
   main: `https://eth-mainnet.alchemyapi.io/v2/${process.env.ALCHEMY_KEY}`,
   btlocal: process.env.BTLOCAL_RPC_URL || `http://localhost:9944/`,
-  bittensor: `https://entrypoint-finney.opentensor.ai`,
+  bittensor: process.env.BITTENSOR_RPC_URL || `https://entrypoint-finney.opentensor.ai`,
   bittensor_test: `https://test.chain.opentensor.ai`,
   mode: "https://mainnet.mode.network/",
   linea: `https://linea-mainnet.infura.io/v3/${process.env.INFURA_KEY}`,
@@ -88,6 +88,13 @@ module.exports = {
         blockNumber: BLOCK_TO_FORK[FORK],
       },
       accounts: { mnemonic: MNEMONIC },
+      chains: {
+        964: {
+          hardforkHistory: {
+            shanghai: 4962500
+          }
+        }
+      }
     },
     btlocal: {
       url: process.env.BTLOCAL_RPC_URL || `http://localhost:9944/`,
@@ -102,7 +109,7 @@ module.exports = {
       accounts: PK ? [PK] : { mnemonic: MNEMONIC },
     },
     bittensor: {
-      url: `https://lite.chain.opentensor.ai`,
+      url: process.env.BTLOCAL_RPC_URL || `https://lite.chain.opentensor.ai`,
       gas: "auto",
       chainId: 964,
       accounts: PK ? [PK] : { mnemonic: MNEMONIC },

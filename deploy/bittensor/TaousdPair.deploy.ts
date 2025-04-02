@@ -52,7 +52,7 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
       0, //0%
       variableInterestRate, // interest rate address - TODO[shr1ftyy]: modify the interest rate params
       0,
-      75000, //75%
+      50000, //50%
       10000, //10%
       0,
     ]
