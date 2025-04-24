@@ -37,7 +37,7 @@ function getRemappings() {
 // Go to https://hardhat.org/config/ to learn more
 
 const BLOCK_TO_FORK = {
-  main: 21181130,
+  main: 22332295,
   bittensor: 5058160,
   btlocal: parseInt(BTLOCAL_RPC_URL),
   mode: 7464010,
@@ -78,7 +78,7 @@ module.exports = {
       hardfork: "shanghai",
       chainId: 31337,
       saveDeployments: true,
-      blockGasLimit: 30000000,
+      blockGasLimit: 40000000,
       initialBaseFeePerGas: "10000000",
       gas: 30000000,
       allowUnlimitedContractSize: true,

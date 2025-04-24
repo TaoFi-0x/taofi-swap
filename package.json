@@ -16,6 +16,8 @@
     "node:sei": "FORK=sei npx hardhat node --no-deploy",
     "test:op": "FORK=op npx hardhat test test/op/*.spec.ts --deploy-fixture",
     "node:op": "FORK=op npx hardhat node --no-deploy",
+    "test:bittensor": "FORK=bittensor npx hardhat test test/bittensor/*.spec1.ts --deploy-fixture --network localhost",
+    "node:bittensor": "FORK=bittensor npx hardhat node --no-deploy",
     "debug": "FORK=main npx hardhat deployAndDebug --network localhost",
     "verify": "npx hardhat verify",
     "prepare": "husky install"
@@ -64,6 +66,8 @@
   },
   "dependencies": {
     "@api3/contracts": "^4.1.1",
+    "@lifi/data-types": "^6.11.1",
+    "@lifi/sdk": "^3.6.8",
     "@mean-finance/uniswap-v3-oracle": "^1.0.3",
     "@openzeppelin/contracts": "^4.9.3",
     "@openzeppelin/contracts-upgradeable": "^4.9.3",

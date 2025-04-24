@@ -22,7 +22,7 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   await deploy("TaousdSiloOracle", {
     contract: "STaoTaoUSDOracle",
     from: deployer,
-    args: [PYTH_TAO_USD_ORACLE, TAO_USD_PRICE_FEED_ID, STAO.address, 86400, 0, "TaousdSiloOracle"],
+    args: [PYTH_TAO_USD_ORACLE, TAO_USD_PRICE_FEED_ID, STAO.address, 129600, 0, "TaousdSiloOracle"],
     log: true,
   });
 
