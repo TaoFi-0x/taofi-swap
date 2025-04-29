@@ -9,7 +9,7 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
 
 interface IBridge {
-	function transferRemote(uint32 _destination, bytes32 _recipient, uint256 _amount) external;
+	function transferRemote(uint32 _destination, bytes32 _recipient, uint256 _amount) external payable;
 }
 
 /// @title TaoSwapAndBridge
@@ -106,7 +106,7 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
       IERC20(_toToken).safeApprove(_toToken, toAmount);
 
       // Bridge
-      IBridge(_toToken).transferRemote(DESTINATION_CHAIN_ID, bytes32(uint256(uint160(msg.sender))), toAmount);
+      IBridge(_toToken).transferRemote{value: 1 wei}(DESTINATION_CHAIN_ID, bytes32(uint256(uint160(msg.sender))), toAmount);
 
       emit SwapAndBridgeExecuted(_target, _data, success);
     } else {
