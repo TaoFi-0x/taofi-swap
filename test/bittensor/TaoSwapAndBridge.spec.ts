@@ -1,6 +1,6 @@
-import { deployments, ethers, getUnnamedAccounts } from 'hardhat';
+import { deployments, ethers, getNamedAccounts, getUnnamedAccounts } from 'hardhat';
 import { makeSuite } from '../helpers/make-suite';
-import { USDC, USDT } from '../helpers/constants';
+import { USDC, USDT, TAO } from '../helpers/constants';
 import { convertToCurrencyDecimals } from '../helpers/misc-utils';
 import { mint } from '../helpers/mint';
 import { findDefaultToken } from '@lifi/data-types'
@@ -10,7 +10,6 @@ import { SimpleTx } from 'hardhat-deploy/types';
 
 const chai = require('chai');
 const { expect } = chai;
-
 
 makeSuite('TaoSwapAndBridge', () => {
   it('Use LiFi Swap Directly', async () => {
@@ -51,8 +50,8 @@ makeSuite('TaoSwapAndBridge', () => {
 });
 
 makeSuite('TaoSwapAndBridge', () => {
-  it('Use Wrapper contract', async () => {
-
+  it('Use Wrapper contract to swap', async () => {
+    const { deployer } = await getNamedAccounts();
     const [depositor] = await getUnnamedAccounts();
     const [,depositorSigner] = await ethers.getSigners();
     const { get, execute } = deployments;
@@ -81,6 +80,10 @@ makeSuite('TaoSwapAndBridge', () => {
     expect(await usdc.balanceOf(depositor)).to.be.eq(amount);
     expect(await usdt.balanceOf(depositor)).to.be.eq(0);
 
+    // set tao token
+    await execute('TaoSwapAndBridge', { from: deployer }, 'setTaoToken', TAO);
+
+    // swap and bridge via lifi
     await expect(
       execute(
         'TaoSwapAndBridge', 
@@ -88,6 +91,7 @@ makeSuite('TaoSwapAndBridge', () => {
         'lifiSwapAndBridge', 
         quoteRequest.fromToken, 
         amount, 
+        quoteRequest.toToken, 
         quote.estimate.approvalAddress, 
         quote.transactionRequest?.to, 
         quote.transactionRequest?.data
@@ -97,10 +101,87 @@ makeSuite('TaoSwapAndBridge', () => {
     // Approve
     await usdc.connect(depositorSigner).approve(taoSwapAndBridgeAddress, amount);
 
-    await execute('TaoSwapAndBridge', { from: depositor }, 'lifiSwapAndBridge', quoteRequest.fromToken, amount, quote.estimate.approvalAddress, quote.transactionRequest?.to, quote.transactionRequest?.data);
+    await execute(
+      'TaoSwapAndBridge', 
+      { from: depositor }, 
+      'lifiSwapAndBridge', 
+      quoteRequest.fromToken, 
+      amount, 
+      quoteRequest.toToken, 
+      quote.estimate.approvalAddress, 
+      quote.transactionRequest?.to, 
+      quote.transactionRequest?.data
+    );
   
     expect(await usdc.balanceOf(depositor)).to.be.eq(0);
-    expect(await usdt.balanceOf(depositor)).to.be.eq(0);
-    expect(await usdt.balanceOf(taoSwapAndBridgeAddress)).to.be.gt(amount.div(10).mul(9));
+    expect(await usdt.balanceOf(depositor)).to.be.gt(amount.div(10).mul(9));
+  });
+});
+
+makeSuite('TaoSwapAndBridge', () => {
+  it('Use Wrapper contract to swap and bridge', async () => {
+    // const { deployer } = await getNamedAccounts();
+    // const [depositor] = await getUnnamedAccounts();
+    // const [,depositorSigner] = await ethers.getSigners();
+    // const { get, execute } = deployments;
+    // const amount = await convertToCurrencyDecimals(USDC, '1000')
+    // const taoSwapAndBridgeAddress = (await get('TaoSwapAndBridge')).address;
+
+    // const quoteRequest: QuoteRequest = {
+    //   fromChain: ChainId.ETH, // Ethereum
+    //   fromToken: findDefaultToken(CoinKey.USDC, ChainId.ETH).address, // USDC ETH
+    //   fromAmount: amount.toString(), // USDC
+    //   toChain: ChainId.ETH, // Ethereum
+    //   toToken: TAO, // TAO ETH
+    //   fromAddress: depositor,
+    //   toAddress: taoSwapAndBridgeAddress,
+    //   // allowBridges: ['hop', 'stargate', 'across', 'amarok'],
+    //   maxPriceImpact: 0.4,
+    // }
+
+    // const quote = await getQuote(quoteRequest)
+    // console.info('>> got quote', quote)
+
+    // // prepare USDC
+    // const usdc = await ethers.getContractAt('ERC20', USDC);
+    // const tao = await ethers.getContractAt('ERC20', TAO);
+    // await mint('USDC', amount, depositor);
+    // expect(await usdc.balanceOf(depositor)).to.be.eq(amount);
+
+    // // set tao token
+    // await execute('TaoSwapAndBridge', { from: deployer }, 'setTaoToken', TAO);
+
+    // // swap and bridge via lifi
+    // await expect(
+    //   execute(
+    //     'TaoSwapAndBridge', 
+    //     { from: depositor }, 
+    //     'lifiSwapAndBridge', 
+    //     quoteRequest.fromToken, 
+    //     amount, 
+    //     quoteRequest.toToken, 
+    //     quote.estimate.approvalAddress, 
+    //     quote.transactionRequest?.to, 
+    //     quote.transactionRequest?.data
+    //   )
+    // ).to.be.reverted;
+
+    // // Approve
+    // await usdc.connect(depositorSigner).approve(taoSwapAndBridgeAddress, amount);
+
+    // await execute(
+    //   'TaoSwapAndBridge', 
+    //   { from: depositor }, 
+    //   'lifiSwapAndBridge', 
+    //   quoteRequest.fromToken, 
+    //   amount, 
+    //   quoteRequest.toToken, 
+    //   quote.estimate.approvalAddress, 
+    //   quote.transactionRequest?.to, 
+    //   quote.transactionRequest?.data
+    // );
+  
+    // expect(await usdc.balanceOf(depositor)).to.be.eq(0);
+    // expect(await tao.balanceOf(depositor)).to.be.eq(0);
   });
 });
