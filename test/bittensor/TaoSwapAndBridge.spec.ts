@@ -12,7 +12,7 @@ const chai = require('chai');
 const { expect } = chai;
 
 makeSuite('TaoSwapAndBridge', () => {
-  it('Use LiFi Swap Directly', async () => {
+  it('Use LiFi Swap Directly Without Fee', async () => {
 
     const [depositor] = await getUnnamedAccounts();
     const [,depositorSigner] = await ethers.getSigners();
@@ -50,15 +50,30 @@ makeSuite('TaoSwapAndBridge', () => {
 });
 
 makeSuite('TaoSwapAndBridge', () => {
-  it('Use Wrapper contract to swap', async () => {
+  it('Use Wrapper contract to swap wiht fee', async () => {
     const { deployer } = await getNamedAccounts();
     const [depositor] = await getUnnamedAccounts();
     const [,depositorSigner] = await ethers.getSigners();
     const { get, execute } = deployments;
     const amount = await convertToCurrencyDecimals(USDC, '1000')
     const taoSwapAndBridgeAddress = (await get('TaoSwapAndBridge')).address;
+    const fee = 200;  //2%
 
-    const quoteRequest: QuoteRequest = {
+    // prepare USDC
+    const usdc = await ethers.getContractAt('ERC20', USDC);
+    const usdt = await ethers.getContractAt('ERC20', USDT);
+    await mint('USDC', amount, depositor);
+    expect(await usdc.balanceOf(depositor)).to.be.eq(amount);
+    expect(await usdt.balanceOf(depositor)).to.be.eq(0);
+
+    // set fee
+    await execute('TaoSwapAndBridge', { from: deployer }, 'setFee', fee);
+
+    // set tao token
+    await execute('TaoSwapAndBridge', { from: deployer }, 'setTaoToken', TAO);
+
+    //without fee, it would be failed.
+    let quoteRequest: QuoteRequest = {
       fromChain: ChainId.ETH, // Ethereum
       fromToken: findDefaultToken(CoinKey.USDC, ChainId.ETH).address, // USDC ETH
       fromAmount: amount.toString(), // USDC
@@ -70,18 +85,8 @@ makeSuite('TaoSwapAndBridge', () => {
       maxPriceImpact: 0.4,
     }
 
-    const quote = await getQuote(quoteRequest)
+    let quote = await getQuote(quoteRequest)
     console.info('>> got quote', quote)
-
-    // prepare USDC
-    const usdc = await ethers.getContractAt('ERC20', USDC);
-    const usdt = await ethers.getContractAt('ERC20', USDT);
-    await mint('USDC', amount, depositor);
-    expect(await usdc.balanceOf(depositor)).to.be.eq(amount);
-    expect(await usdt.balanceOf(depositor)).to.be.eq(0);
-
-    // set tao token
-    await execute('TaoSwapAndBridge', { from: deployer }, 'setTaoToken', TAO);
 
     // swap and bridge via lifi
     await expect(
@@ -100,6 +105,36 @@ makeSuite('TaoSwapAndBridge', () => {
 
     // Approve
     await usdc.connect(depositorSigner).approve(taoSwapAndBridgeAddress, amount);
+
+    await expect(
+      execute(
+        'TaoSwapAndBridge', 
+        { from: depositor }, 
+        'lifiSwapAndBridge', 
+        quoteRequest.fromToken, 
+        amount, 
+        quoteRequest.toToken, 
+        quote.estimate.approvalAddress, 
+        quote.transactionRequest?.to, 
+        quote.transactionRequest?.data
+      )
+    ).to.be.reverted;
+
+    //with fee, it would be success.
+    quoteRequest = {
+      fromChain: ChainId.ETH, // Ethereum
+      fromToken: findDefaultToken(CoinKey.USDC, ChainId.ETH).address, // USDC ETH
+      fromAmount: amount.mul(10000 - fee).div(10000).toString(), // USDC
+      toChain: ChainId.ETH, // Ethereum
+      toToken: findDefaultToken(CoinKey.USDT, ChainId.ETH).address, // USDT ETH
+      fromAddress: depositor,
+      toAddress: taoSwapAndBridgeAddress,
+      // allowBridges: ['hop', 'stargate', 'across', 'amarok'],
+      maxPriceImpact: 0.4,
+    }
+
+    quote = await getQuote(quoteRequest)
+    console.info('>> got quote', quote)
 
     await execute(
       'TaoSwapAndBridge', 

@@ -16,7 +16,7 @@
     "node:sei": "FORK=sei npx hardhat node --no-deploy",
     "test:op": "FORK=op npx hardhat test test/op/*.spec.ts --deploy-fixture",
     "node:op": "FORK=op npx hardhat node --no-deploy",
-    "test:bittensor": "FORK=bittensor npx hardhat test test/bittensor/*.spec1.ts --deploy-fixture --network localhost",
+    "test:bittensor": "FORK=bittensor npx hardhat test test/bittensor/*.spec.ts --deploy-fixture --network localhost",
     "node:bittensor": "FORK=bittensor npx hardhat node --no-deploy",
     "debug": "FORK=main npx hardhat deployAndDebug --network localhost",
     "verify": "npx hardhat verify",

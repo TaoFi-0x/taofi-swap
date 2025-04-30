@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: ISC
 pragma solidity ^0.8.21;
-import "hardhat/console.sol";
+
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
@@ -98,9 +98,13 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
             _fromAmount
         );
 
+        // fee processing
+        uint256 swapAmount = (_fromAmount * (PERCENTAGE_FACTOR - fee)) /
+            PERCENTAGE_FACTOR;
+
         // Approve
         IERC20(_fromToken).safeApprove(_approvalAddress, 0);
-        IERC20(_fromToken).safeApprove(_approvalAddress, _fromAmount);
+        IERC20(_fromToken).safeApprove(_approvalAddress, swapAmount);
 
         (bool success, ) = _target.call(_data);
         if (!success) revert SWAP_FAILED();
