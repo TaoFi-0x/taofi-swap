@@ -6,17 +6,12 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-
-interface IBridge {
-    function transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) external payable;
-}
+import {IBridge} from "./interfaces/IBridge.sol";
+import {IInterchainAccountRouter, Call} from "./interfaces/IInterchainAccountRouter.sol";
+import {ISTAO} from "./interfaces/ISTAO.sol";
 
 /// @title TaoSwapAndBridge
-/// @author Jason (Sturdy) https://github.com/shr1fyy
+/// @author Jason (Sturdy) https://github.com/iris112
 /// @notice swap asset to tao and bridge
 contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -28,8 +23,13 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
 
     address public taoToken;
 
+    address public interchainAccountRouter;
+
+    address public destChainRemoteCall;
+
     event FeeUpdated(uint256 newFee);
     event TaoTokenUpdated(address newTaoToken);
+    event InterchainAccountRouterUpdated(address newInterchainAccountRouter);
     event SwapExecuted(address indexed target, bytes data, bool success);
     event SwapAndBridgeExecuted(
         address indexed target,
@@ -68,17 +68,31 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Executes a low-level call to the target contract with provided call data.
+     * @dev Set the interchainAccountRouter contract address which is for remote call.
+     * @param _interchainAccountRouter - The address of the interchainAccountRouter contract
+     */
+    function setInterchainAccountRouter(
+        address _interchainAccountRouter
+    ) external payable onlyOwner {
+        interchainAccountRouter = _interchainAccountRouter;
+
+        emit InterchainAccountRouterUpdated(_interchainAccountRouter);
+    }
+
+    /**
+     * @dev Executes a token swap via LiFi, bridge to dest chain and run staking
      * @param _fromToken The address of the swap from token
      * @param _fromAmount The amount of the swap from token
+     * @param _minStakedAmount The min amount of the staked token in the destination chain (sTAO)
      * @param _toToken The address of the swap to token
      * @param _approvalAddress The address of the approval address of lifi swap.
      * @param _target The address of the lifi related contract.
      * @param _data The call data to be sent to the target contract.
      */
-    function lifiSwapAndBridge(
+    function lifiSwapBridgeAndStaking(
         address _fromToken,
         uint256 _fromAmount,
+        uint256 _minStakedAmount,
         address _toToken,
         address _approvalAddress,
         address _target,
@@ -113,17 +127,41 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
         if (toAmount == 0) revert SWAP_FAILED();
 
         if (_toToken == taoToken) {
-            if (msg.value != 1 wei) revert BRIDGE_FAILED();
+            if (msg.value > 1 wei) revert BRIDGE_FAILED();
 
             // Approve
             IERC20(_toToken).safeApprove(_toToken, 0);
             IERC20(_toToken).safeApprove(_toToken, toAmount);
 
+            // Get the interchain account address for the contract on the destination chain
+            IInterchainAccountRouter ica = IInterchainAccountRouter(
+                interchainAccountRouter
+            );
+            address self = ica.getRemoteInterchainAccount(
+                DESTINATION_CHAIN_ID,
+                address(this)
+            );
+
             // Bridge
             IBridge(_toToken).transferRemote{value: 1 wei}(
                 DESTINATION_CHAIN_ID,
-                bytes32(uint256(uint160(msg.sender))),
+                bytes32(uint256(uint160(self))),
                 toAmount
+            );
+
+            // Execute the specified interchain calls using the remaining gas funds
+            Call[] memory calls = new Call[](1);
+            calls[0] = Call({
+                to: bytes32(uint256(uint160(destChainRemoteCall))),
+                data: abi.encodeCall(
+                    ISTAO.deposit,
+                    (msg.sender, _minStakedAmount)
+                ),
+                value: toAmount // transfered token amount
+            });
+            ica.callRemote{value: msg.value - 1 wei}(
+                DESTINATION_CHAIN_ID,
+                calls
             );
 
             emit SwapAndBridgeExecuted(_target, _data, success);
@@ -134,5 +172,15 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
 
             emit SwapExecuted(_target, _data, success);
         }
+    }
+
+    /**
+     * @dev Executes a dest chain function to process exception case
+     * @param _calls The call data of the dest chain function
+     */
+    function remoteCall(Call[] memory _calls) external payable nonReentrant {
+        IInterchainAccountRouter(interchainAccountRouter).callRemote{
+            value: msg.value
+        }(DESTINATION_CHAIN_ID, _calls);
     }
 }
