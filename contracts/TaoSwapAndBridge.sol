@@ -18,7 +18,6 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
 
     uint256 private constant PERCENTAGE_FACTOR = 100_00;
     uint32 private constant DESTINATION_CHAIN_ID = 964;
-    address private constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     uint256 public fee;
 
@@ -45,6 +44,7 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
     error SWAP_FAILED();
     error TAO_NOT_EXIST();
     error BRIDGE_FAILED();
+    error WITHDRAW_FEE_FAILED();
 
     /**
      * @dev Set the fee of the swap and bridge.
@@ -81,6 +81,25 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @dev withdraw fee from the contract
+     * @param _token The withdrawal fee token address
+     * @param _amount The withdrawal fee amount
+     * @param _treasury The treasury address
+     */
+    function withdrawFee(
+        address _token,
+        uint256 _amount,
+        address _treasury
+    ) external payable onlyOwner {
+        if (_token == address(0)) {
+            (bool success, ) = _treasury.call{value: _amount}("");
+            if (!success) revert WITHDRAW_FEE_FAILED();
+        } else {
+            IERC20(_token).safeTransfer(_treasury, _amount);
+        }
+    }
+
+    /**
      * @dev Executes a token swap via LiFi, bridge to dest chain and run staking
      * @param _fromToken The address of the swap from token
      * @param _fromAmount The amount of the swap from token
@@ -99,7 +118,6 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
         address _target,
         bytes calldata _data
     ) external payable nonReentrant {
-        if (_fromToken == address(0)) revert INVALID_ADDRESS();
         if (_fromAmount == 0) revert INVALID_VALUE();
         if (_toToken == address(0)) revert INVALID_ADDRESS();
         if (_approvalAddress == address(0)) revert INVALID_ADDRESS();
@@ -112,10 +130,10 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
         uint256 swapAmount = (_fromAmount * (PERCENTAGE_FACTOR - fee)) /
             PERCENTAGE_FACTOR;
 
-        if (_fromToken == ETH) {
+        if (_fromToken == address(0)) {
             if (msg.value < _fromAmount) revert SWAP_FAILED();
 
-            (success, ) = _target.call{value: _fromAmount}(_data);
+            (success, ) = _target.call{value: swapAmount}(_data);
         } else {
             // transfer
             IERC20(_fromToken).safeTransferFrom(
@@ -176,8 +194,6 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
 
             emit SwapAndBridgeExecuted(_target, _data, success);
         } else {
-            if (msg.value > 0) revert SWAP_FAILED();
-
             IERC20(_toToken).safeTransfer(msg.sender, toAmount);
 
             emit SwapExecuted(_target, _data, success);
