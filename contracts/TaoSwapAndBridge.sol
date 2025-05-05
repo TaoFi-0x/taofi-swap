@@ -18,6 +18,7 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
 
     uint256 private constant PERCENTAGE_FACTOR = 100_00;
     uint32 private constant DESTINATION_CHAIN_ID = 964;
+    address private constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     uint256 public fee;
 
@@ -105,29 +106,38 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
         if (_target == address(0)) revert INVALID_ADDRESS();
         if (!Address.isContract(_target)) revert NOT_CONTRACT();
 
-        // transfer
-        IERC20(_fromToken).safeTransferFrom(
-            msg.sender,
-            address(this),
-            _fromAmount
-        );
+        bool success;
 
         // fee processing
         uint256 swapAmount = (_fromAmount * (PERCENTAGE_FACTOR - fee)) /
             PERCENTAGE_FACTOR;
 
-        // Approve
-        IERC20(_fromToken).safeApprove(_approvalAddress, 0);
-        IERC20(_fromToken).safeApprove(_approvalAddress, swapAmount);
+        if (_fromToken == ETH) {
+            if (msg.value < _fromAmount) revert SWAP_FAILED();
 
-        (bool success, ) = _target.call(_data);
+            (success, ) = _target.call{value: _fromAmount}(_data);
+        } else {
+            // transfer
+            IERC20(_fromToken).safeTransferFrom(
+                msg.sender,
+                address(this),
+                _fromAmount
+            );
+
+            // Approve
+            IERC20(_fromToken).safeApprove(_approvalAddress, 0);
+            IERC20(_fromToken).safeApprove(_approvalAddress, swapAmount);
+
+            (success, ) = _target.call(_data);
+        }
+
         if (!success) revert SWAP_FAILED();
 
         uint256 toAmount = IERC20(_toToken).balanceOf(address(this));
         if (toAmount == 0) revert SWAP_FAILED();
 
         if (_toToken == taoToken) {
-            if (msg.value > 1 wei) revert BRIDGE_FAILED();
+            if (msg.value <= 1 wei) revert BRIDGE_FAILED();
 
             // Approve
             IERC20(_toToken).safeApprove(_toToken, 0);
