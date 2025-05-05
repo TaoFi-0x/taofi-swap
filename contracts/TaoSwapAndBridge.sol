@@ -135,10 +135,13 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
             PERCENTAGE_FACTOR;
 
         if (_fromToken == address(0)) {
+            // fromToken is ETH
             if (msg.value < _fromAmount) revert SWAP_FAILED();
 
+            // LiFi Swap
             (success, ) = _target.call{value: swapAmount}(_data);
         } else {
+            // fromToken is ERC20 token
             feeAmount[_fromToken] += _fromAmount - swapAmount;
 
             // transfer
@@ -152,6 +155,7 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
             IERC20(_fromToken).safeApprove(_approvalAddress, 0);
             IERC20(_fromToken).safeApprove(_approvalAddress, swapAmount);
 
+            // LiFi Swap
             (success, ) = _target.call(_data);
         }
 
@@ -162,6 +166,7 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
         if (toAmount == 0) revert SWAP_FAILED();
 
         if (_toToken == taoToken) {
+            // Bridge + Staking via Hyperlane
             if (msg.value <= 1 wei) revert BRIDGE_FAILED();
 
             // Approve
@@ -201,6 +206,7 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
 
             emit SwapAndBridgeExecuted(_target, _data, success);
         } else {
+            // Deliver swapped token
             IERC20(_toToken).safeTransfer(msg.sender, toAmount);
 
             emit SwapExecuted(_target, _data, success);
