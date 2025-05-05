@@ -27,6 +27,9 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
 
     address public destChainRemoteCall;
 
+    // token -> amount
+    mapping(address => uint256) public feeAmount;
+
     event FeeUpdated(uint256 newFee);
     event TaoTokenUpdated(address newTaoToken);
     event InterchainAccountRouterUpdated(address newInterchainAccountRouter);
@@ -95,6 +98,7 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
             (bool success, ) = _treasury.call{value: _amount}("");
             if (!success) revert WITHDRAW_FEE_FAILED();
         } else {
+            feeAmount[_token] -= _amount;
             IERC20(_token).safeTransfer(_treasury, _amount);
         }
     }
@@ -135,6 +139,8 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
 
             (success, ) = _target.call{value: swapAmount}(_data);
         } else {
+            feeAmount[_fromToken] += _fromAmount - swapAmount;
+
             // transfer
             IERC20(_fromToken).safeTransferFrom(
                 msg.sender,
@@ -151,7 +157,8 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
 
         if (!success) revert SWAP_FAILED();
 
-        uint256 toAmount = IERC20(_toToken).balanceOf(address(this));
+        uint256 toAmount = IERC20(_toToken).balanceOf(address(this)) -
+            feeAmount[_toToken];
         if (toAmount == 0) revert SWAP_FAILED();
 
         if (_toToken == taoToken) {
