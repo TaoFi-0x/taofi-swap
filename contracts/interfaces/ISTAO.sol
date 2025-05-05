@@ -27,6 +27,10 @@ interface ISTAO {
     /// @notice Event emitted when the stakes are rebalanced
     event Rebalanced(bytes32[] hotkeys, uint256[] amounts);
 
+    /// @notice Returns the network fee
+    /// @return networkFee The network fee
+    function networkFee() external view returns (uint256 networkFee);
+
     /// @notice Returns how much TAO is staked in the contract
     /// @return totalStaked The total amount of TAO staked in the contract
     /// @dev Calculation is done by summarizing the balance of the contract and the total stake on the staking precompile
