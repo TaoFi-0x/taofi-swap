@@ -7,17 +7,23 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {IStaking, ISUBTENSOR_STAKING_ADDRESS} from "./interfaces/IStaking.sol";
 import {ISTAO} from "./interfaces/ISTAO.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {TAOStaker} from "./TAOStaker.sol";
 
-contract STAO is ERC20Upgradeable, OwnableUpgradeable, ISTAO {
+contract STAO is ERC20Upgradeable, OwnableUpgradeable, ISTAO, TAOStaker {
     using Math for uint256;
 
-    bytes32 public pubKey;
-    address public stakingPrecompile;
+    bytes32 public pubKey; // Not used after updated
+    address public stakingPrecompile; // Not used after upgrade
     uint256 public networkFee;
 
     function initialize() public initializer {
         __ERC20_init("Staked TAO", "sTAO");
         __Ownable_init();
+        __TAOStaker_init(bytes32(0), address(0));
+    }
+
+    function initializeV2(bytes32 _pubKey, address _stakingPrecompile) public reinitializer(2) {
+        __TAOStaker_init(_pubKey, _stakingPrecompile);
     }
 
     /// @inheritdoc ISTAO
@@ -27,62 +33,12 @@ contract STAO is ERC20Upgradeable, OwnableUpgradeable, ISTAO {
     }
 
     /// @inheritdoc ISTAO
-    function setPubKey(bytes32 _pubKey) public onlyOwner {
-        pubKey = _pubKey;
-        emit PubKeySet(_pubKey);
-    }
-
-    /// @inheritdoc ISTAO
-    function setStakingPrecompile(address _stakingPrecompile) public onlyOwner {
-        stakingPrecompile = _stakingPrecompile;
-        emit StakingPrecompileSet(_stakingPrecompile);
-    }
-
-    // TODO: WIP
-    /// @inheritdoc ISTAO
-    function rebalance(bytes32[] calldata hotkeys, uint256[] calldata amounts) public onlyOwner {
-        // increase/decrease the stakes according to the hotkeys and amounts
-        // make it so that the final stake in the hotkeys is the amount specified
-        for (uint256 i = 0; i < hotkeys.length; i++) {
-            // TODO: this points to root for now
-            uint256 currentStake = IStaking(stakingPrecompile).getStake(hotkeys[i], pubKey, 0);
-            if (currentStake < amounts[i]) {
-                increaseStake(hotkeys[i], amounts[i] - currentStake);
-            } else if (currentStake > amounts[i]) {
-                decreaseStake(hotkeys[i], currentStake - amounts[i]);
-            }
-        }
-
-        emit Rebalanced(hotkeys, amounts);
-    }
-
-    // TODO: add onlyStaker modifier?
-    /// @inheritdoc ISTAO
-    function increaseStake(bytes32 hotkey, uint256 amount) public payable onlyOwner {
-        require(address(this).balance >= amount, "Insufficient balance for staking");
-        require(hotkey != bytes32(0), "Invalid hotkey");
-
-        (bool sent,) = payable(stakingPrecompile).call{value: amount}(
-            abi.encodeWithSignature("addStake(bytes32,uint256)", hotkey, 0)
-        );
-        require(sent, "Failed to send TAO");
-        emit StakeIncreased(hotkey, amount);
-    }
-
-    /// @inheritdoc ISTAO
-    function decreaseStake(bytes32 hotkey, uint256 amount) public onlyOwner {
-        // call removeStake by using encodeWithSignature
-        (bool success,) =
-            stakingPrecompile.call(abi.encodeWithSignature("removeStake(bytes32,uint256,uint256)", hotkey, amount, 0));
-        require(success, "Failed to remove stake");
-        emit StakeDecreased(hotkey, amount);
-    }
-
-    /// @inheritdoc ISTAO
     function deposit(address receiver, uint256 minSTAO) public payable {
         require(msg.value >= networkFee, "Amount too low");
 
         uint256 amount = msg.value - networkFee;
+        _stakeOnFirstHotKey(amount);
+
         uint256 sTAOAmount = convertToShares(amount, amount);
         require(sTAOAmount >= minSTAO, "Slippage too big");
 
@@ -96,6 +52,11 @@ contract STAO is ERC20Upgradeable, OwnableUpgradeable, ISTAO {
 
         uint256 taoAmount = convertToAssets(amount);
         require(taoAmount >= minTAO, "Slippage too big");
+
+        uint256 taoAmountAvailable = address(this).balance;
+        if (taoAmountAvailable < taoAmount) {
+            _unstake(taoAmount - taoAmountAvailable);
+        }
 
         require(address(this).balance >= taoAmount, "Insufficient TAO balance after unstaking");
 
@@ -118,11 +79,6 @@ contract STAO is ERC20Upgradeable, OwnableUpgradeable, ISTAO {
             return amount;
         }
         return amount.mulDiv(totalStakedTAO() + 1, supply + 10 ** _decimalsOffset(), Math.Rounding.Down);
-    }
-
-    /// @inheritdoc ISTAO
-    function totalStakedTAO() public view returns (uint256) {
-        return IStaking(stakingPrecompile).getTotalColdkeyStake(pubKey) + address(this).balance;
     }
 
     function _decimalsOffset() private pure returns (uint256) {

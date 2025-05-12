@@ -61,8 +61,9 @@ interface IBTAO {
     /// @param _destination The destination chain
     /// @param _recipient The recipient address
     /// @param _amount The amount of TAO to transfer
+    /// @param _minSTAO The minimum amount of sTAO to receive
     /// @return messageId The message ID of the transfer
-    function transferRemote(uint32 _destination, bytes32 _recipient, uint256 _amount)
+    function transferRemote(uint32 _destination, bytes32 _recipient, uint256 _amount, uint256 _minSTAO)
         external
         payable
         returns (bytes32 messageId);

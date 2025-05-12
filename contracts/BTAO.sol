@@ -58,15 +58,17 @@ contract BTAO is IBTAO, ERC20Upgradeable, OwnableUpgradeable {
     }
 
     /// @inheritdoc IBTAO
-    function transferRemote(uint32 _destination, bytes32 _recipient, uint256 _amount)
+    function transferRemote(uint32 _destination, bytes32 _recipient, uint256 _amount, uint256 _minSTAO)
         external
         payable
         returns (bytes32 messageId)
     {
         uint256 amount = _amount - networkFee - bridgeFee;
-        _mint(address(this), amount);
+        ISTAO(sTAO).deposit{value: amount}(address(this), _minSTAO);
 
+        _mint(address(this), amount);
         IERC20(address(this)).approve(bridge, amount);
+
         return IBridge(bridge).transferRemote{value: bridgeFee}(_destination, _recipient, amount);
     }
 
@@ -77,6 +79,9 @@ contract BTAO is IBTAO, ERC20Upgradeable, OwnableUpgradeable {
         } else {
             // If caller is bridge, we need to burn the tokens
             _burn(from, amount);
+
+            uint256 amountToUnstake = ISTAO(sTAO).convertToShares(amount, 0);
+            ISTAO(sTAO).withdraw(amountToUnstake, address(this), amount);
 
             // Send native tokens to receiver
             payable(to).transfer(amount);
