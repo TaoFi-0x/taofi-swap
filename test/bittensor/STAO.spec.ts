@@ -1,8 +1,8 @@
 import chai from "chai";
-import { ethers, getNamedAccounts } from "hardhat";
-import { evmRevert, evmSnapshot } from "../helpers/make-suite";
-import { STAO, MockStakingPrecompile } from "../../typechain";
 import { BigNumberish } from "ethers";
+import { ethers, getNamedAccounts, upgrades } from "hardhat";
+import { MockStakingPrecompile, STAO } from "../../typechain";
+import { evmRevert, evmSnapshot } from "../helpers/make-suite";
 
 const { expect } = chai;
 
@@ -26,6 +26,9 @@ describe("STAO Contract", function () {
   let deployer: string;
   let pubKey: string;
 
+  const HOTKEY1 =
+    "0x1111111111111111111111111111111111111111111111111111111111111111";
+
   before(async () => {
     try {
       // Deploy MockStakingPrecompile
@@ -35,13 +38,16 @@ describe("STAO Contract", function () {
       mockStakingPrecompile = await MockStakingPrecompile.deploy();
       await mockStakingPrecompile.deployed();
 
-      // Get STAO instance
       const STAO = await ethers.getContractFactory("STAO");
-      sTAO = await STAO.deploy();
+      sTAO = await upgrades.deployProxy(STAO, [], {
+        initializer: "initialize",
+        unsafeAllow: [
+          "missing-initializer",
+          "struct-definition",
+          "enum-definition",
+        ],
+      });
       await sTAO.deployed();
-
-      const initializeTx = await sTAO.initialize();
-      await initializeTx.wait();
 
       // set pub key for sTAO
       pubKey = ethers.utils
@@ -59,6 +65,8 @@ describe("STAO Contract", function () {
       await expect(sTAO.setStakingPrecompile(mockStakingPrecompile.address))
         .to.emit(sTAO, "StakingPrecompileSet")
         .withArgs(mockStakingPrecompile.address);
+
+      await sTAO.addHotKeys([HOTKEY1]);
 
       ({ deployer } = await getNamedAccounts());
 
@@ -90,6 +98,9 @@ describe("STAO Contract", function () {
     const balanceAfter = await sTAO.balanceOf(deployer);
     const balanceAfterNum = Number(ethers.utils.formatEther(balanceAfter));
 
+    const stakedAtFirstHotKey = await sTAO.getHotKeyStakedAmount(HOTKEY1);
+    expect(stakedAtFirstHotKey).to.be.eq(amount);
+
     expect(balanceAfterNum).to.be.approximately(
       Number(ethers.utils.formatEther(amount)),
       0.00001
@@ -117,15 +128,11 @@ describe("STAO Contract", function () {
     );
 
     // hotkey to delegate to (increaseStake)
-    const hotkey = ethers.utils.hexZeroPad(ethers.utils.hexlify(1), 32);
-    await sTAO.increaseStake(hotkey, amount);
+    const hotkey = HOTKEY1;
 
     // check totalStakes for coldkey
     // deployer coldkey - bytes32(uint256(uint160(sTAO.address)))
-    const pubKey = ethers.utils.hexZeroPad(
-      ethers.utils.hexlify(ethers.BigNumber.from(sTAO.address)),
-      32
-    );
+    const pubKey = await sTAO.getPubKey();
 
     expect(
       (await mockStakingPrecompile.getTotalColdkeyStake(pubKey)).toString()
@@ -205,9 +212,9 @@ describe("STAO Contract", function () {
     const amount = "690000000000000000";
     const expectedShares = await sTAO.convertToShares(amount, 0);
 
-    await expect(sTAO.deposit(deployer, expectedShares + 1)).to.be.revertedWith(
-      "Slippage too big"
-    );
+    await expect(
+      sTAO.deposit(deployer, expectedShares + 1, { value: amount })
+    ).to.be.revertedWith("Slippage too big");
   });
 
   it("Should revert if slippage is too big on withdraw", async () => {
@@ -234,9 +241,9 @@ describe("STAO Contract", function () {
 
     // Simulate staking rewards
     const firstStakingReward = ethers.utils.parseEther("0.1");
-    const hotkey = ethers.utils.hexZeroPad(ethers.utils.hexlify(1), 32);
+    const hotkey = HOTKEY1;
 
-    await sTAO.increaseStake(hotkey, aliceDepositAmount);
+    // await sTAO.increaseStake(hotkey, aliceDepositAmount);
     await mockStakingPrecompile.accrueStakingRewards(
       hotkey,
       0,

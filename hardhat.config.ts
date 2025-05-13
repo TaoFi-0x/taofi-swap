@@ -1,19 +1,18 @@
-import * as fs from "fs";
 import { config as dotenvConfig } from "dotenv";
+import * as fs from "fs";
 import { resolve } from "path";
 dotenvConfig({ path: resolve(__dirname, "./.env") });
 
-import "@nomiclabs/hardhat-waffle";
-import "@typechain/hardhat";
+import "@nomicfoundation/hardhat-verify";
 import "@nomiclabs/hardhat-ethers";
 import "@nomiclabs/hardhat-waffle";
-import "hardhat-gas-reporter";
-import "@nomicfoundation/hardhat-verify";
+import "@openzeppelin/hardhat-upgrades";
+import "@typechain/hardhat";
 import "hardhat-contract-sizer";
 import "hardhat-deploy";
+import "hardhat-gas-reporter";
 import "hardhat-preprocessor";
 import "solidity-coverage";
-import "@openzeppelin/hardhat-upgrades";
 
 import "./hardhat/tasks";
 
@@ -49,7 +48,8 @@ const BLOCK_TO_FORK = {
 const NETWORKS_RPC_URL = {
   main: `https://eth-mainnet.alchemyapi.io/v2/${process.env.ALCHEMY_KEY}`,
   btlocal: process.env.BTLOCAL_RPC_URL || `http://localhost:9944/`,
-  bittensor: process.env.BITTENSOR_RPC_URL || `https://entrypoint-finney.opentensor.ai`,
+  bittensor:
+    process.env.BITTENSOR_RPC_URL || `https://entrypoint-finney.opentensor.ai`,
   bittensor_test: `https://test.chain.opentensor.ai`,
   mode: "https://mainnet.mode.network/",
   linea: `https://linea-mainnet.infura.io/v3/${process.env.INFURA_KEY}`,
@@ -91,10 +91,10 @@ module.exports = {
       chains: {
         964: {
           hardforkHistory: {
-            shanghai: 4962500
-          }
-        }
-      }
+            shanghai: 4962500,
+          },
+        },
+      },
     },
     btlocal: {
       url: process.env.BTLOCAL_RPC_URL || `http://localhost:9944/`,
