@@ -10,21 +10,18 @@ import {IBridge} from "./interfaces/IBridge.sol";
 import {IInterchainAccountRouter, Call} from "./interfaces/IInterchainAccountRouter.sol";
 import {ISTAO} from "./interfaces/ISTAO.sol";
 
-/// @title TaoSwapAndBridge
+/// @title TaoSwapAndBridgeFromMain
 /// @author Jason (Sturdy) https://github.com/iris112
 /// @notice swap asset to tao and bridge
-contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
+contract TaoSwapAndBridgeFromMain is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint256 private constant PERCENTAGE_FACTOR = 100_00;
     uint32 private constant DESTINATION_CHAIN_ID = 964;
 
     uint256 public fee;
-
     address public taoToken;
-
     address public interchainAccountRouter;
-
     address public destChainRemoteCall;
 
     // token -> amount

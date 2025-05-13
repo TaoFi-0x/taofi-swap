@@ -11,7 +11,7 @@ import { SimpleTx } from 'hardhat-deploy/types';
 const chai = require('chai');
 const { expect } = chai;
 
-makeSuite('TaoSwapAndBridge', () => {
+makeSuite('TaoSwapAndBridgeFromMain', () => {
   it('Use LiFi Swap Directly Without Fee', async () => {
 
     const [depositor] = await getUnnamedAccounts();
@@ -49,14 +49,14 @@ makeSuite('TaoSwapAndBridge', () => {
   });
 });
 
-makeSuite('TaoSwapAndBridge', () => {
+makeSuite('TaoSwapAndBridgeFromMain', () => {
   it('Use Wrapper contract to swap with fee from ETH', async () => {
     const { deployer } = await getNamedAccounts();
     const [depositor] = await getUnnamedAccounts();
     const [,depositorSigner] = await ethers.getSigners();
     const { get, execute } = deployments;
     const amount = await ethers.utils.parseEther('10');
-    const taoSwapAndBridgeAddress = (await get('TaoSwapAndBridge')).address;
+    const taoSwapAndBridgeFromMainAddress = (await get('TaoSwapAndBridgeFromMain')).address;
     const fee = 200;  //2%
 
     // prepare ETH
@@ -66,10 +66,10 @@ makeSuite('TaoSwapAndBridge', () => {
     expect(await usdt.balanceOf(depositor)).to.be.eq(0);
 
     // set fee
-    await execute('TaoSwapAndBridge', { from: deployer }, 'setFee', fee);
+    await execute('TaoSwapAndBridgeFromMain', { from: deployer }, 'setFee', fee);
 
     // set tao token
-    await execute('TaoSwapAndBridge', { from: deployer }, 'setTaoToken', TAO);
+    await execute('TaoSwapAndBridgeFromMain', { from: deployer }, 'setTaoToken', TAO);
 
     //without fee, it would be failed.
     let quoteRequest: QuoteRequest = {
@@ -79,7 +79,7 @@ makeSuite('TaoSwapAndBridge', () => {
       toChain: ChainId.ETH, // Ethereum
       toToken: findDefaultToken(CoinKey.USDT, ChainId.ETH).address, // USDT ETH
       fromAddress: depositor,
-      toAddress: taoSwapAndBridgeAddress,
+      toAddress: taoSwapAndBridgeFromMainAddress,
       // allowBridges: ['hop', 'stargate', 'across', 'amarok'],
       maxPriceImpact: 0.4,
     }
@@ -90,7 +90,7 @@ makeSuite('TaoSwapAndBridge', () => {
     // swap and bridge via lifi
     await expect(
       execute(
-        'TaoSwapAndBridge', 
+        'TaoSwapAndBridgeFromMain', 
         { from: depositor, value: amount }, 
         'lifiSwapBridgeAndStaking', 
         quoteRequest.fromToken, 
@@ -111,7 +111,7 @@ makeSuite('TaoSwapAndBridge', () => {
       toChain: ChainId.ETH, // Ethereum
       toToken: findDefaultToken(CoinKey.USDT, ChainId.ETH).address, // USDT ETH
       fromAddress: depositor,
-      toAddress: taoSwapAndBridgeAddress,
+      toAddress: taoSwapAndBridgeFromMainAddress,
       // allowBridges: ['hop', 'stargate', 'across', 'amarok'],
       maxPriceImpact: 0.4,
     }
@@ -120,7 +120,7 @@ makeSuite('TaoSwapAndBridge', () => {
     console.info('>> got quote', quote)
 
     await execute(
-      'TaoSwapAndBridge', 
+      'TaoSwapAndBridgeFromMain', 
       { from: depositor, value: amount }, 
       'lifiSwapBridgeAndStaking', 
       quoteRequest.fromToken, 
@@ -139,7 +139,7 @@ makeSuite('TaoSwapAndBridge', () => {
     const deployerBalance = await ethers.provider.getBalance(deployer)
 
     await execute(
-      'TaoSwapAndBridge', 
+      'TaoSwapAndBridgeFromMain', 
       { from: deployer }, 
       'withdrawFee', 
       quoteRequest.fromToken, 
@@ -151,14 +151,14 @@ makeSuite('TaoSwapAndBridge', () => {
   });
 });
 
-makeSuite('TaoSwapAndBridge', () => {
+makeSuite('TaoSwapAndBridgeFromMain', () => {
   it('Use Wrapper contract to swap with fee from ERC20 Token', async () => {
     const { deployer } = await getNamedAccounts();
     const [depositor] = await getUnnamedAccounts();
     const [,depositorSigner] = await ethers.getSigners();
     const { get, execute } = deployments;
     const amount = await convertToCurrencyDecimals(USDC, '1000')
-    const taoSwapAndBridgeAddress = (await get('TaoSwapAndBridge')).address;
+    const taoSwapAndBridgeFromMainAddress = (await get('TaoSwapAndBridgeFromMain')).address;
     const fee = 200;  //2%
 
     // prepare USDC
@@ -169,10 +169,10 @@ makeSuite('TaoSwapAndBridge', () => {
     expect(await usdt.balanceOf(depositor)).to.be.eq(0);
 
     // set fee
-    await execute('TaoSwapAndBridge', { from: deployer }, 'setFee', fee);
+    await execute('TaoSwapAndBridgeFromMain', { from: deployer }, 'setFee', fee);
 
     // set tao token
-    await execute('TaoSwapAndBridge', { from: deployer }, 'setTaoToken', TAO);
+    await execute('TaoSwapAndBridgeFromMain', { from: deployer }, 'setTaoToken', TAO);
 
     //without fee, it would be failed.
     let quoteRequest: QuoteRequest = {
@@ -182,7 +182,7 @@ makeSuite('TaoSwapAndBridge', () => {
       toChain: ChainId.ETH, // Ethereum
       toToken: findDefaultToken(CoinKey.USDT, ChainId.ETH).address, // USDT ETH
       fromAddress: depositor,
-      toAddress: taoSwapAndBridgeAddress,
+      toAddress: taoSwapAndBridgeFromMainAddress,
       // allowBridges: ['hop', 'stargate', 'across', 'amarok'],
       maxPriceImpact: 0.4,
     }
@@ -193,7 +193,7 @@ makeSuite('TaoSwapAndBridge', () => {
     // swap and bridge via lifi
     await expect(
       execute(
-        'TaoSwapAndBridge', 
+        'TaoSwapAndBridgeFromMain', 
         { from: depositor }, 
         'lifiSwapBridgeAndStaking', 
         quoteRequest.fromToken, 
@@ -207,11 +207,11 @@ makeSuite('TaoSwapAndBridge', () => {
     ).to.be.reverted;
 
     // Approve
-    await usdc.connect(depositorSigner).approve(taoSwapAndBridgeAddress, amount);
+    await usdc.connect(depositorSigner).approve(taoSwapAndBridgeFromMainAddress, amount);
 
     await expect(
       execute(
-        'TaoSwapAndBridge', 
+        'TaoSwapAndBridgeFromMain', 
         { from: depositor }, 
         'lifiSwapBridgeAndStaking', 
         quoteRequest.fromToken, 
@@ -232,7 +232,7 @@ makeSuite('TaoSwapAndBridge', () => {
       toChain: ChainId.ETH, // Ethereum
       toToken: findDefaultToken(CoinKey.USDT, ChainId.ETH).address, // USDT ETH
       fromAddress: depositor,
-      toAddress: taoSwapAndBridgeAddress,
+      toAddress: taoSwapAndBridgeFromMainAddress,
       // allowBridges: ['hop', 'stargate', 'across', 'amarok'],
       maxPriceImpact: 0.4,
     }
@@ -241,7 +241,7 @@ makeSuite('TaoSwapAndBridge', () => {
     console.info('>> got quote', quote)
 
     await execute(
-      'TaoSwapAndBridge', 
+      'TaoSwapAndBridgeFromMain', 
       { from: depositor }, 
       'lifiSwapBridgeAndStaking', 
       quoteRequest.fromToken, 
@@ -260,7 +260,7 @@ makeSuite('TaoSwapAndBridge', () => {
     expect(await usdc.balanceOf(deployer)).to.be.eq(0);
 
     await execute(
-      'TaoSwapAndBridge', 
+      'TaoSwapAndBridgeFromMain', 
       { from: deployer }, 
       'withdrawFee', 
       quoteRequest.fromToken, 
@@ -272,14 +272,14 @@ makeSuite('TaoSwapAndBridge', () => {
   });
 });
 
-makeSuite('TaoSwapAndBridge', () => {
+makeSuite('TaoSwapAndBridgeFromMain', () => {
   it('Use Wrapper contract to swap and bridge', async () => {
     // const { deployer } = await getNamedAccounts();
     // const [depositor] = await getUnnamedAccounts();
     // const [,depositorSigner] = await ethers.getSigners();
     // const { get, execute } = deployments;
     // const amount = await convertToCurrencyDecimals(USDC, '1000')
-    // const taoSwapAndBridgeAddress = (await get('TaoSwapAndBridge')).address;
+    // const taoSwapAndBridgeFromMainAddress = (await get('TaoSwapAndBridgeFromMain')).address;
 
     // const quoteRequest: QuoteRequest = {
     //   fromChain: ChainId.ETH, // Ethereum
@@ -288,7 +288,7 @@ makeSuite('TaoSwapAndBridge', () => {
     //   toChain: ChainId.ETH, // Ethereum
     //   toToken: TAO, // TAO ETH
     //   fromAddress: depositor,
-    //   toAddress: taoSwapAndBridgeAddress,
+    //   toAddress: taoSwapAndBridgeFromMainAddress,
     //   // allowBridges: ['hop', 'stargate', 'across', 'amarok'],
     //   maxPriceImpact: 0.4,
     // }
@@ -303,12 +303,12 @@ makeSuite('TaoSwapAndBridge', () => {
     // expect(await usdc.balanceOf(depositor)).to.be.eq(amount);
 
     // // set tao token
-    // await execute('TaoSwapAndBridge', { from: deployer }, 'setTaoToken', TAO);
+    // await execute('TaoSwapAndBridgeFromMain', { from: deployer }, 'setTaoToken', TAO);
 
     // // swap and bridge via lifi
     // await expect(
     //   execute(
-    //     'TaoSwapAndBridge', 
+    //     'TaoSwapAndBridgeFromMain', 
     //     { from: depositor }, 
     //     'lifiSwapBridgeAndStaking', 
     //     quoteRequest.fromToken, 
@@ -322,10 +322,10 @@ makeSuite('TaoSwapAndBridge', () => {
     // ).to.be.reverted;
 
     // // Approve
-    // await usdc.connect(depositorSigner).approve(taoSwapAndBridgeAddress, amount);
+    // await usdc.connect(depositorSigner).approve(taoSwapAndBridgeFromMainAddress, amount);
 
     // await execute(
-    //   'TaoSwapAndBridge', 
+    //   'TaoSwapAndBridgeFromMain', 
     //   { from: depositor }, 
     //   'lifiSwapBridgeAndStaking', 
     //   quoteRequest.fromToken, 
