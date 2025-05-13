@@ -12,7 +12,7 @@ import {ISTAO} from "./interfaces/ISTAO.sol";
 
 /// @title TaoSwapAndBridgeFromMain
 /// @author Jason (Sturdy) https://github.com/iris112
-/// @notice swap asset to tao and bridge
+/// @notice ERC20/ETH -> TAO(Ethereum) -> TAO(Bittensor EVM) -> sTAO
 contract TaoSwapAndBridgeFromMain is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
