@@ -33,6 +33,7 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
     event FeeUpdated(uint256 newFee);
     event TaoTokenUpdated(address newTaoToken);
     event InterchainAccountRouterUpdated(address newInterchainAccountRouter);
+    event DestChainRemoteCallUpdated(address newDestChainRemoteCall);
     event SwapExecuted(address indexed target, bytes data, bool success);
     event SwapAndBridgeExecuted(
         address indexed target,
@@ -81,6 +82,18 @@ contract TaoSwapAndBridge is Ownable, ReentrancyGuard {
         interchainAccountRouter = _interchainAccountRouter;
 
         emit InterchainAccountRouterUpdated(_interchainAccountRouter);
+    }
+
+    /**
+     * @dev Set the destChainRemoteCall contract address which is for remote call.
+     * @param _destChainRemoteCall - The address of the destChainRemoteCall contract
+     */
+    function setDestChainRemoteCall(
+        address _destChainRemoteCall
+    ) external payable onlyOwner {
+        destChainRemoteCall = _destChainRemoteCall;
+
+        emit DestChainRemoteCallUpdated(_destChainRemoteCall);
     }
 
     /**
