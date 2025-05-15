@@ -3,13 +3,27 @@
 // used for staking functionality on bittensor
 pragma solidity ^0.8.3;
 
-address constant ISUBTENSOR_STAKING_ADDRESS = 0x0000000000000000000000000000000000000801;
+address constant ISUBTENSOR_STAKING_ADDRESS = 0x0000000000000000000000000000000000000805;
 
 interface IStaking {
     function addStake(bytes32 hotkey, uint256 netuid) external payable;
+    function addStakeLimit(
+        bytes32 hotkey,
+        uint256 amount,
+        uint256 limit_price,
+        bool allow_partial,
+        uint256 netuid
+    ) external payable;
     function removeStake(
         bytes32 hotkey,
         uint256 amount,
+        uint256 netuid
+    ) external;
+    function removeStakeLimit(
+        bytes32 hotkey,
+        uint256 amount,
+        uint256 limit_price,
+        bool allow_partial,
         uint256 netuid
     ) external;
     function getTotalColdkeyStake(

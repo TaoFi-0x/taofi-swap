@@ -55,6 +55,14 @@ contract MockStakingPrecompile is IStaking {
         console.log(totalStakes[coldkey]);
     }
 
+    function addStakeLimit(
+        bytes32 hotkey,
+        uint256 amount,
+        uint256 limit_price,
+        bool allow_partial,
+        uint256 netuid
+    ) external payable override {}
+
     // function to simulate adding staking rewards to a specific hotkey at netuid
     function accrueStakingRewards(bytes32 hotkey, uint256 netuid, uint256 amount) external {
         require(isHotkeyActive[hotkey], "Hotkey not active");
@@ -113,6 +121,14 @@ contract MockStakingPrecompile is IStaking {
         // Transfer the unstaked amount back
         payable(msg.sender).transfer(amount);
     }
+
+    function removeStakeLimit(
+        bytes32 hotkey,
+        uint256 amount,
+        uint256 limit_price,
+        bool allow_partial,
+        uint256 netuid
+    ) external override {}
 
     function getTotalColdkeyStake(bytes32 coldkey) external view override returns (uint256) {
         return totalStakes[coldkey];
