@@ -33,6 +33,9 @@ contract TaoSwapAndBridgeToMain is Ownable, ReentrancyGuard {
     error SWAP_FAILED();
     error WITHDRAW_FEE_FAILED();
 
+    // Allows receiving TAO
+    receive() external payable {}
+
     constructor(address _taoUSD, address _taoUSDBridge, address _taoUSDsTAOZap) {
         taoUSD = IERC20(_taoUSD);
         taoUSDBridge = _taoUSDBridge;
