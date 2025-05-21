@@ -100,7 +100,8 @@ contract SwapBridgeAndCallFromMain is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Executes a token swap via LiFi, bridge to dest chain and call remote function
+     * @dev Executes a token swap via LiFi, bridge to Bittensor EVM and call remote function of Bittensor EVM contract.
+     *      ex: ERC20/ETH(Ethereum) -> USDC(Ethereum) -> USDC(Bittensor EVM) -> Remote Call(Bittensor EVM)
      * @param _fromToken The address of the swap from token
      * @param _fromAmount The amount of the swap from token
      * @param _approvalAddress The address of the approval address of lifi swap.
