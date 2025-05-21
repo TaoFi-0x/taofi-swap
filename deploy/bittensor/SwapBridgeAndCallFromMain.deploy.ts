@@ -5,14 +5,14 @@ import { DeployFunction } from "hardhat-deploy/types";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   console.log(
-    `Deploying TaoSwapAndBridgeFromMain to ${hre.network.name}. Hit ctrl + c to abort`
+    `Deploying SwapBridgeAndCallFromMain to ${hre.network.name}. Hit ctrl + c to abort`
   );
 
   const { deploy } = deployments;
   const { deployer } = await getNamedAccounts();
 
-  await deploy("TaoSwapAndBridgeFromMain", {
-    contract: "TaoSwapAndBridgeFromMain",
+  await deploy("SwapBridgeAndCallFromMain", {
+    contract: "SwapBridgeAndCallFromMain",
     from: deployer,
     args: [],
     log: true
@@ -31,4 +31,4 @@ func.skip = async (hre: HardhatRuntimeEnvironment) => {
   return true;
 };
 
-func.tags = ["TaoSwapAndBridgeFromMain"];
+func.tags = ["SwapBridgeAndCallFromMain"];
