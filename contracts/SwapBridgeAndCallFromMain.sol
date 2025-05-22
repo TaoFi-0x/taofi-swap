@@ -7,7 +7,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {IBridge} from "./interfaces/IBridge.sol";
-import {IInterchainAccountRouter, Call} from "./interfaces/IInterchainAccountRouter.sol";
+import {IInterchainAccountRouter, IInterchainAccountRouterWithOverrides, Call} from "./interfaces/IInterchainAccountRouter.sol";
 
 /// @title SwapBridgeAndCallFromMain
 /// @author Jason (Sturdy) https://github.com/iris112
@@ -158,9 +158,14 @@ contract SwapBridgeAndCallFromMain is Ownable, ReentrancyGuard {
      * @param _calls The call data of the dest chain function
      */
     function remoteCall(Call[] calldata _calls) external payable nonReentrant {
-        IInterchainAccountRouter(interchainAccountRouter).callRemote{
-            value: msg.value
-        }(DESTINATION_CHAIN_ID, _calls);
+        IInterchainAccountRouterWithOverrides(interchainAccountRouter).callRemoteWithOverrides{value: msg.value}(
+            DESTINATION_CHAIN_ID,
+            remoteRouterBytes, // Or your bytes32 router override
+            remoteIsmBytes,    // Or your bytes32 ISM override
+            _calls,
+            hookMetadata,
+            userSpecificSalt
+        );
     }
 
     function _bridgeAndCall(Call[] calldata _calls) internal {
@@ -184,22 +189,29 @@ contract SwapBridgeAndCallFromMain is Ownable, ReentrancyGuard {
         IInterchainAccountRouter ica = IInterchainAccountRouter(
             interchainAccountRouter
         );
-        address self = ica.getRemoteInterchainAccount(
+        bytes32 userSpecificSalt = bytes32(uint256(uint160(msg.sender)));
+
+        address userIcaOnDestination = ica.getRemoteInterchainAccount(
             DESTINATION_CHAIN_ID,
-            address(this)
+            address(this),
+            userSpecificSalt
         );
 
         // Bridge
         IBridge(_bridge).transferRemote{value: 1 wei}(
             DESTINATION_CHAIN_ID,
-            bytes32(uint256(uint160(self))),
+            bytes32(uint256(uint160(userIcaOnDestination))),
             swapAmount
         );
 
         // Execute the specified interchain calls using the remaining gas funds
-        ica.callRemote{value: msg.value - 1 wei}(
+        IInterchainAccountRouterWithOverrides(interchainAccountRouter).callRemoteWithOverrides{value: msg.value - 1 wei}(
             DESTINATION_CHAIN_ID,
-            _calls
+            remoteRouterBytes, // Or your bytes32 router override
+            remoteIsmBytes,    // Or your bytes32 ISM override
+            _calls,
+            hookMetadata,
+            userSpecificSalt
         );
     }
 }
