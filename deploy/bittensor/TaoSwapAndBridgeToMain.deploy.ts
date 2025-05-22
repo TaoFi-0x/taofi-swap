@@ -11,14 +11,12 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   const { deploy, get } = deployments;
   const { deployer } = await getNamedAccounts();
 
-  const taoUSD = "0x9bB4FC27453e04318bf968f2E994B47eDa8F724D";
-  const taoUSDBridge = "0x8f9864c1f79eBC8aEc0949671aC0463bf40E5933";
-  const taoUSDsTAOZapAddress = (await get("TaoUSDSTAOZap")).address;
+  const uniswapRouter = "";
 
   await deploy("TaoSwapAndBridgeToMain", {
     contract: "TaoSwapAndBridgeToMain",
     from: deployer,
-    args: [taoUSD, taoUSDBridge, taoUSDsTAOZapAddress],
+    args: [uniswapRouter],
     log: true
   });
 };

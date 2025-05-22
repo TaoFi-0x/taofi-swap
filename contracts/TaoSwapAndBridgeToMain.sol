@@ -8,19 +8,24 @@ import {IBridge} from "./interfaces/IBridge.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ITaoUSDSTAOZap} from "./interfaces/ITaoUSDSTAOZap.sol";
 import {IStaking, ISUBTENSOR_STAKING_ADDRESS} from "./interfaces/IStaking.sol";
+import {IUniswapV3Router} from "./interfaces/IUniswapV3Router.sol";
+
+interface IWTAO {
+    function deposit() external payable;
+}
 
 /// @title TaoSwapAndBridgeToMain
 /// @author Jason (Sturdy) https://github.com/iris112
-/// @notice alpha(Bittensor EVM) -> TAO(Bittensor EVM) -> sTAO(Bittensor EVM) -> taoUSD(Bittensor EVM) -> USDC(Ethereum)
+/// @notice alpha(Bittensor EVM) -> TAO(Bittensor EVM) -> USDC(Bittensor EVM) -> USDC(Ethereum)
 contract TaoSwapAndBridgeToMain is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint256 private constant PERCENTAGE_FACTOR = 100_00;
     uint32 private constant DESTINATION_CHAIN_ID = 1;   //Ethereum
+    address private constant WTAO = 0x9Dc08C6e2BF0F1eeD1E00670f80Df39145529F81;
+    address private constant USDC = 0xB833E8137FEDf80de7E908dc6fea43a029142F20;
 
-    IERC20 public immutable taoUSD;
-    address public immutable taoUSDBridge;
-    ITaoUSDSTAOZap public immutable taoUSDsTAOZap;
+    address public immutable uniswapRouter;
 
     uint256 public fee;
     uint256 public feeAmount;
@@ -36,10 +41,8 @@ contract TaoSwapAndBridgeToMain is Ownable, ReentrancyGuard {
     // Allows receiving TAO
     receive() external payable {}
 
-    constructor(address _taoUSD, address _taoUSDBridge, address _taoUSDsTAOZap) {
-        taoUSD = IERC20(_taoUSD);
-        taoUSDBridge = _taoUSDBridge;
-        taoUSDsTAOZap = ITaoUSDSTAOZap(_taoUSDsTAOZap);
+    constructor(address _uniswapRouter) {
+        uniswapRouter = _uniswapRouter;
     }
 
     /**
@@ -64,42 +67,57 @@ contract TaoSwapAndBridgeToMain is Ownable, ReentrancyGuard {
         address _treasury
     ) external payable onlyOwner {
         feeAmount -= _amount;
-        taoUSD.safeTransfer(_treasury, _amount);
+        IERC20(USDC).safeTransfer(_treasury, _amount);
     }
 
     /**
-     * @dev Executes a alpha -> TAO -> sTAO -> taoUSD -> USDC(Ethereum)
+     * @dev Executes a alpha -> TAO -> BridgeToken -> BridgeToken(Ethereum)
+     *      ex: alpha -> TAO -> USDC -> USDC(Ethereum)
      * @param _hotkey The hotkey public key.
      * @param _netuid The subnet to stake to.
      * @param _alphaAmount The alpha token amount
-     * @param _minTaoUSDAmount The taoUSD min amount after unstake and swap
+     * @param _minAmount The bridgeToken min amount after unstake and swap
      */
     function unStakeSwapAndBridging(
         bytes32 _hotkey,
         uint256 _netuid,
         uint256 _alphaAmount,
-        uint256 _minTaoUSDAmount
+        uint256 _minAmount
     ) external payable nonReentrant {
         // alpha -> TAO
         IStaking(ISUBTENSOR_STAKING_ADDRESS).removeStakeLimit(_hotkey, _alphaAmount, 0, false, _netuid);
         uint256 taoAmount = address(this).balance - msg.value;
         if (taoAmount == 0) revert SWAP_FAILED();
 
-        // TAO -> sTAO -> taoUSD
-        uint256 taoUSDAmount = taoUSDsTAOZap.swapExactTAOForTAOUSD{value: taoAmount}(_minTaoUSDAmount);
+        // TAO -> WTAO
+        IWTAO(WTAO).deposit{value: taoAmount}();
+
+        // WTAO -> USDC
+        IERC20(WTAO).safeApprove(uniswapRouter, taoAmount);
+
+        IUniswapV3Router.ExactInputParams memory params =
+            IUniswapV3Router.ExactInputParams({
+                path: abi.encodePacked(WTAO, uint24(3000), USDC),
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: taoAmount,
+                amountOutMinimum: _minAmount
+            });
+            
+        uint256 usdcAmount = IUniswapV3Router(uniswapRouter).exactInput(params);
 
         // fee processing
-        uint256 bridgeAmount = (taoUSDAmount * (PERCENTAGE_FACTOR - fee)) /
+        uint256 bridgeAmount = (usdcAmount * (PERCENTAGE_FACTOR - fee)) /
             PERCENTAGE_FACTOR;
-        feeAmount += taoUSDAmount - bridgeAmount;
+        feeAmount += usdcAmount - bridgeAmount;
 
-        // bridge (taoUSD -> USDC)
+        // bridge (USDC -> USDC)
         if (msg.value <= 1 wei) revert BRIDGE_FAILED();
 
-        taoUSD.safeApprove(taoUSDBridge, 0);
-        taoUSD.safeApprove(taoUSDBridge, bridgeAmount);
+        IERC20(USDC).safeApprove(USDC, 0);
+        IERC20(USDC).safeApprove(USDC, bridgeAmount);
 
-        IBridge(taoUSDBridge).transferRemote{value: 1 wei}(
+        IBridge(USDC).transferRemote{value: 1 wei}(
             DESTINATION_CHAIN_ID,
             bytes32(uint256(uint160(msg.sender))),
             bridgeAmount
