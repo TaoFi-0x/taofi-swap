@@ -12,11 +12,14 @@ import {
     IInterchainAccountRouterWithOverrides,
     Call
 } from "./interfaces/IInterchainAccountRouter.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /// @title SwapBridgeAndCallFromMain
 /// @author Jason (Sturdy) https://github.com/iris112
 /// @notice ERC20/ETH -> BridgeToken(Ethereum) -> BridgeToken(Bittensor EVM) -> Remote Call(Bittensor EVM)
-contract SwapBridgeAndCallFromMain is Ownable, ReentrancyGuard {
+contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
 
     struct RemoteCallsParams {
@@ -57,6 +60,11 @@ contract SwapBridgeAndCallFromMain is Ownable, ReentrancyGuard {
     error BRIDGE_FAILED();
     error EXTERNAL_CALL_FAILED();
     error INVALID_TARGET();
+
+    function initialize() external initializer {
+        __Ownable_init();
+        __ReentrancyGuard_init();
+    }
 
     /**
      * @dev Set the fee of the swap and bridge.
