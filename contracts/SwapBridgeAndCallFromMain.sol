@@ -27,7 +27,6 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
         bytes32 ism;
         Call[] calls;
         bytes hookMetadata;
-        bytes32 userSalt;
     }
 
     struct ExternalCall {
