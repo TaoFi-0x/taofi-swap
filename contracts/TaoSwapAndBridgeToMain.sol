@@ -21,7 +21,6 @@ contract TaoSwapAndBridgeToMain is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint256 private constant PERCENTAGE_FACTOR = 100_00;
-    uint32 private constant DESTINATION_CHAIN_ID = 1;   //Ethereum
     address private constant WTAO = 0x9Dc08C6e2BF0F1eeD1E00670f80Df39145529F81;
     address private constant USDC = 0xB833E8137FEDf80de7E908dc6fea43a029142F20;
 
@@ -62,10 +61,7 @@ contract TaoSwapAndBridgeToMain is Ownable, ReentrancyGuard {
      * @param _amount The withdrawal fee amount
      * @param _treasury The treasury address
      */
-    function withdrawFee(
-        uint256 _amount,
-        address _treasury
-    ) external payable onlyOwner {
+    function withdrawFee(uint256 _amount, address _treasury) external payable onlyOwner {
         feeAmount -= _amount;
         IERC20(USDC).safeTransfer(_treasury, _amount);
     }
@@ -82,7 +78,9 @@ contract TaoSwapAndBridgeToMain is Ownable, ReentrancyGuard {
         bytes32 _hotkey,
         uint256 _netuid,
         uint256 _alphaAmount,
-        uint256 _minAmount
+        uint256 _minAmount,
+        uint32 _destinationChainId,
+        address _receiver
     ) external payable nonReentrant {
         // alpha -> TAO
         IStaking(ISUBTENSOR_STAKING_ADDRESS).removeStakeLimit(_hotkey, _alphaAmount, 0, false, _netuid);
@@ -95,20 +93,18 @@ contract TaoSwapAndBridgeToMain is Ownable, ReentrancyGuard {
         // WTAO -> USDC
         IERC20(WTAO).safeApprove(uniswapRouter, taoAmount);
 
-        IUniswapV3Router.ExactInputParams memory params =
-            IUniswapV3Router.ExactInputParams({
-                path: abi.encodePacked(WTAO, uint24(3000), USDC),
-                recipient: address(this),
-                deadline: block.timestamp,
-                amountIn: taoAmount,
-                amountOutMinimum: _minAmount
-            });
-            
+        IUniswapV3Router.ExactInputParams memory params = IUniswapV3Router.ExactInputParams({
+            path: abi.encodePacked(WTAO, uint24(3000), USDC),
+            recipient: address(this),
+            deadline: block.timestamp,
+            amountIn: taoAmount,
+            amountOutMinimum: _minAmount
+        });
+
         uint256 usdcAmount = IUniswapV3Router(uniswapRouter).exactInput(params);
 
         // fee processing
-        uint256 bridgeAmount = (usdcAmount * (PERCENTAGE_FACTOR - fee)) /
-            PERCENTAGE_FACTOR;
+        uint256 bridgeAmount = (usdcAmount * (PERCENTAGE_FACTOR - fee)) / PERCENTAGE_FACTOR;
         feeAmount += usdcAmount - bridgeAmount;
 
         // bridge (USDC -> USDC)
@@ -118,9 +114,7 @@ contract TaoSwapAndBridgeToMain is Ownable, ReentrancyGuard {
         IERC20(USDC).safeApprove(USDC, bridgeAmount);
 
         IBridge(USDC).transferRemote{value: 1 wei}(
-            DESTINATION_CHAIN_ID,
-            bytes32(uint256(uint160(msg.sender))),
-            bridgeAmount
+            _destinationChainId, bytes32(uint256(uint160(_receiver))), bridgeAmount
         );
 
         emit SwapAndBridgeExecuted(_alphaAmount, bridgeAmount);

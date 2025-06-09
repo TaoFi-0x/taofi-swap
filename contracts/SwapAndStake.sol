@@ -68,7 +68,7 @@ contract SwapAndStake {
         }
 
         // Stake TAO
-        IStakingV2(stakingPrecompile).addStakeLimit{value: amountOut}(
+        IStakingV2(stakingPrecompile).addStakeLimit(
             stakeParams.hotkey, amountOut, stakeParams.limitPrice, false, stakeParams.netuid
         );
 
@@ -79,30 +79,5 @@ contract SwapAndStake {
         );
 
         emit Stake(msg.sender, stakeParams.hotkey, stakeParams.netuid, amountOut);
-    }
-
-    function unstakeSwapAndBridge(
-        UnstakeParams calldata unstakeParams,
-        IUniswapV3Router.ExactInputSingleParams calldata swapParams,
-        BridgeParams calldata bridgeParams
-    ) external {
-        // Unstake TAO
-        IStakingV2(stakingPrecompile).removeStakeLimit(
-            unstakeParams.hotkey, unstakeParams.amount, unstakeParams.limitPrice, false, unstakeParams.netuid
-        );
-
-        // Wrap TAO to WTAO
-        IWTAO(wtao).deposit{value: unstakeParams.amount}();
-
-        // Approve and swap
-        IERC20(wtao).approve(uniswapRouter, unstakeParams.amount);
-
-        // Swap WTAO to USDC
-        uint256 amountOut = IUniswapV3Router(uniswapRouter).exactInputSingle(swapParams);
-
-        // Bridge USDC to remote
-        IERC20(swapParams.tokenOut).approve(bridge, amountOut);
-
-        IBridge(bridge).transferRemote{value: 1 wei}(bridgeParams.destinationChainId, bridgeParams.receiver, amountOut);
     }
 }

@@ -140,6 +140,8 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
         if (_target == address(0)) revert INVALID_ADDRESS();
         if (!Address.isContract(_target)) revert NOT_CONTRACT();
 
+        uint256 valueSpent = _fromToken == address(0) ? _fromAmount : 0;
+
         if (_fromToken == address(0)) {
             // fromToken is ETH
             if (msg.value < _fromAmount) revert SWAP_FAILED();
@@ -160,7 +162,7 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
 
         emit SwapAndBridgeExecuted(_target, _data);
 
-        _bridgeAndCall(_params);
+        _bridgeAndCall(_params, valueSpent);
     }
 
     /**
@@ -201,7 +203,7 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
         }
     }
 
-    function _bridgeAndCall(RemoteCallsParams calldata _params) internal {
+    function _bridgeAndCall(RemoteCallsParams calldata _params, uint256 valueSpent) internal {
         address _toToken = bridgeToken;
         address _bridge = bridge;
         uint256 toAmount = IERC20(_toToken).balanceOf(address(this)) - feeAmount;
@@ -221,16 +223,21 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
         IInterchainAccountRouter ica = IInterchainAccountRouter(interchainAccountRouter);
         bytes32 userSpecificSalt = bytes32(uint256(uint160(msg.sender)));
 
-        address userIcaOnDestination =
-            ica.getRemoteInterchainAccount(DESTINATION_CHAIN_ID, address(this), userSpecificSalt);
+        // Avoid stack too deep
+        {
+            address userIcaOnDestination =
+                ica.getRemoteInterchainAccount(DESTINATION_CHAIN_ID, address(this), userSpecificSalt);
 
-        // Bridge
-        IBridge(_bridge).transferRemote{value: 1 wei}(
-            DESTINATION_CHAIN_ID, bytes32(uint256(uint160(userIcaOnDestination))), swapAmount
-        );
+            // Bridge
+            IBridge(_bridge).transferRemote{value: 1 wei}(
+                DESTINATION_CHAIN_ID, bytes32(uint256(uint160(userIcaOnDestination))), swapAmount
+            );
+        }
 
         // Execute the specified interchain calls using the remaining gas funds
-        IInterchainAccountRouterWithOverrides(interchainAccountRouter).callRemoteWithOverrides{value: msg.value - 1 wei}(
+        IInterchainAccountRouterWithOverrides(interchainAccountRouter).callRemoteWithOverrides{
+            value: msg.value - valueSpent - 1 wei
+        }(
             DESTINATION_CHAIN_ID,
             _params.router, // Or your bytes32 router override
             _params.ism, // Or your bytes32 ISM override

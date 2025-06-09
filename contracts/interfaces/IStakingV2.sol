@@ -39,8 +39,7 @@ interface IStakingV2 {
     function getTotalAlphaStaked(bytes32 hotkey, uint256 netuid) external view returns (uint256);
 
     function addStakeLimit(bytes32 hotkey, uint256 amount, uint256 limit_price, bool allow_partial, uint256 netuid)
-        external
-        payable;
+        external;
 
     function removeStakeLimit(bytes32 hotkey, uint256 amount, uint256 limit_price, bool allow_partial, uint256 netuid)
         external;
