@@ -136,31 +136,38 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
         RemoteCallsParams calldata _params
     ) external payable nonReentrant {
         if (_fromAmount == 0) revert INVALID_VALUE();
-        if (_approvalAddress == address(0)) revert INVALID_ADDRESS();
-        if (_target == address(0)) revert INVALID_ADDRESS();
-        if (!Address.isContract(_target)) revert NOT_CONTRACT();
 
         uint256 valueSpent = _fromToken == address(0) ? _fromAmount : 0;
+        address _toToken = bridgeToken;
 
-        if (_fromToken == address(0)) {
-            // fromToken is ETH
-            if (msg.value < _fromAmount) revert SWAP_FAILED();
-
-            // LiFi Swap
-            _executeExternalCall(_target, _fromAmount, _data);
-        } else {
-            // transfer
+        if (_fromToken == _toToken) {
+            // No need LiFi Swap and just transfer
             IERC20(_fromToken).safeTransferFrom(msg.sender, address(this), _fromAmount);
+        } else {
+            if (_approvalAddress == address(0)) revert INVALID_ADDRESS();
+            if (_target == address(0)) revert INVALID_ADDRESS();
+            if (!Address.isContract(_target)) revert NOT_CONTRACT();
 
-            // Approve
-            IERC20(_fromToken).safeApprove(_approvalAddress, 0);
-            IERC20(_fromToken).safeApprove(_approvalAddress, _fromAmount);
+            if (_fromToken == address(0)) {
+                // fromToken is ETH
+                if (msg.value < _fromAmount) revert SWAP_FAILED();
 
-            // LiFi Swap
-            _executeExternalCall(_target, 0, _data);
+                // LiFi Swap
+                _executeExternalCall(_target, _fromAmount, _data);
+            } else {
+                // transfer
+                IERC20(_fromToken).safeTransferFrom(msg.sender, address(this), _fromAmount);
+
+                // Approve
+                IERC20(_fromToken).safeApprove(_approvalAddress, 0);
+                IERC20(_fromToken).safeApprove(_approvalAddress, _fromAmount);
+
+                // LiFi Swap
+                _executeExternalCall(_target, 0, _data);
+            }
+
+            emit SwapAndBridgeExecuted(_target, _data);
         }
-
-        emit SwapAndBridgeExecuted(_target, _data);
 
         _bridgeAndCall(_params, valueSpent);
     }
