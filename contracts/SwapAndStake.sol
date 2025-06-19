@@ -1,13 +1,9 @@
-// SPDX-License-Identifier: ISC
-pragma solidity ^0.8.0;
-
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
-import {IWTAO} from "./interfaces/IWTAO.sol";
-import {IStakingV2} from "./interfaces/IStakingV2.sol";
-import {IUniswapV3Router} from "./interfaces/IUniswapV3Router.sol";
-import {IBridge} from "./interfaces/IBridge.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IUniswapV3Router} from "@uniswap/v3-periphery/contracts/interfaces/IUniswapV3Router.sol";
+import {IWTAO} from "@tao-network/tao-contracts/contracts/IWTAO.sol";
+import {IStakingV2} from "@tao-network/tao-contracts/contracts/IStakingV2.sol";
+import {IBridge} from "@tao-network/tao-contracts/contracts/IBridge.sol";
 
 contract SwapAndStake {
     struct SwapParams {
@@ -42,6 +38,7 @@ contract SwapAndStake {
     address public immutable uniswapRouter;
     address public immutable stakingPrecompile;
     address public immutable bridge;
+    bytes32 public pubkey;
 
     constructor(address _usdc, address _wtao, address _uniswapRouter, address _stakingPrecompile, address _bridge) {
         usdc = _usdc;
@@ -53,7 +50,6 @@ contract SwapAndStake {
 
     function swapAndStake(IUniswapV3Router.ExactInputSingleParams calldata swapParams, StakeParams calldata stakeParams)
         external
-        payable
     {
         // Take USDC
         SafeERC20.safeTransferFrom(IERC20(swapParams.tokenIn), msg.sender, address(this), swapParams.amountIn);
@@ -68,16 +64,138 @@ contract SwapAndStake {
         }
 
         // Stake TAO
-        IStakingV2(stakingPrecompile).addStakeLimit(
-            stakeParams.hotkey, amountOut, stakeParams.limitPrice, false, stakeParams.netuid
-        );
+        uint256 formatAmountOut = amountOut / 10 ** 9;
 
-        // Return excess TAO
-        bytes32 senderColdKey = bytes32(uint256(uint160(msg.sender)));
-        IStakingV2(stakingPrecompile).transferStake(
-            senderColdKey, stakeParams.hotkey, stakeParams.netuid, stakeParams.netuid, amountOut
+        (bool success,) = payable(stakingPrecompile).call{value: formatAmountOut}(
+            abi.encodeWithSelector(
+                IStakingV2.addStake.selector, stakeParams.hotkey, formatAmountOut, stakeParams.netuid
+            )
         );
+        if (!success) {
+            revert("Failed to add stake");
+        }
 
         emit Stake(msg.sender, stakeParams.hotkey, stakeParams.netuid, amountOut);
+    }
+
+    function swapAndStakeWithTransfer(
+        IUniswapV3Router.ExactInputSingleParams memory swapParams,
+        StakeParams calldata stakeParams,
+        bytes32 receiverColdKey
+    ) external {
+        // Sender stakes full holdings
+        swapParams.amountIn = IERC20(swapParams.tokenIn).balanceOf(address(msg.sender));
+
+        // Take USDC
+        SafeERC20.safeTransferFrom(IERC20(swapParams.tokenIn), msg.sender, address(this), swapParams.amountIn);
+
+        // Swap USDC to TAO
+        IERC20(swapParams.tokenIn).approve(uniswapRouter, swapParams.amountIn);
+        uint256 amountOut = IUniswapV3Router(uniswapRouter).exactInputSingle(swapParams);
+
+        // If asset out is WETH, unwrap it
+        if (swapParams.tokenOut == wtao) {
+            IWTAO(wtao).withdraw(amountOut);
+        }
+
+        // Stake TAO
+        uint256 formatAmountOut = amountOut / 10 ** 9;
+
+        (bool success,) = payable(stakingPrecompile).call{value: formatAmountOut}(
+            abi.encodeWithSelector(
+                IStakingV2.addStake.selector, stakeParams.hotkey, formatAmountOut, stakeParams.netuid
+            )
+        );
+        if (!success) {
+            revert("Failed to add stake");
+        }
+
+        bytes32 senderColdKey = bytes32(uint256(uint160(msg.sender)));
+        if (receiverColdKey == bytes32(0)) {
+            receiverColdKey = senderColdKey; // If no receiver is specified, use the sender's coldkey
+        }
+        uint256 alphaStakeBalance =
+            IStakingV2(stakingPrecompile).getStake(stakeParams.hotkey, pubkey, stakeParams.netuid);
+
+        (bool successTransfer,) = (stakingPrecompile).call(
+            abi.encodeWithSelector(
+                IStakingV2.transferStake.selector,
+                receiverColdKey,
+                stakeParams.hotkey,
+                stakeParams.netuid,
+                stakeParams.netuid,
+                alphaStakeBalance
+            )
+        );
+        if (!successTransfer) {
+            revert("Failed to transfer stake");
+        }
+
+        emit Stake(msg.sender, stakeParams.hotkey, stakeParams.netuid, amountOut);
+    }
+
+    function getStake(bytes32 hotkey, bytes32 coldkey, uint256 netuid) public view returns (uint256) {
+        uint256 alphaBalance = IStakingV2(stakingPrecompile).getStake(hotkey, coldkey, netuid);
+        return alphaBalance;
+    }
+
+    function transferStake(
+        bytes32 destinationColdkey,
+        bytes32 hotkey,
+        uint256 originNetuid,
+        uint256 destinationNetuid,
+        uint256 amount
+    ) external {
+        // Get the amount of stake to transfer
+        // We treat msg.sender (address) in the mock as a bytes32 coldkey key for simplicity.
+        (bool success,) = (stakingPrecompile).call(
+            abi.encodeWithSelector(
+                IStakingV2.transferStake.selector, destinationColdkey, hotkey, originNetuid, destinationNetuid, amount
+            )
+        );
+        if (!success) {
+            revert("Failed to transfer stake");
+        }
+    }
+
+    function unstakeSwapAndBridge(
+        UnstakeParams calldata unstakeParams,
+        IUniswapV3Router.ExactInputSingleParams calldata swapParams,
+        BridgeParams calldata bridgeParams
+    ) external {
+        // Unstake TAO
+        uint256 formatAmount = unstakeParams.amount / 10 ** 9;
+
+        (bool success,) = (stakingPrecompile).call(
+            abi.encodeWithSelector(
+                IStakingV2.removeStake.selector, unstakeParams.hotkey, formatAmount, unstakeParams.netuid
+            )
+        );
+        if (!success) {
+            revert("Failed to remove stake");
+        }
+
+        // Wrap TAO to WTAO
+        IWTAO(wtao).deposit{value: unstakeParams.amount}();
+
+        // Approve and swap
+        IERC20(wtao).approve(uniswapRouter, unstakeParams.amount);
+
+        // Swap WTAO to USDC
+        uint256 amountOut = IUniswapV3Router(uniswapRouter).exactInputSingle(swapParams);
+
+        // Bridge USDC to remote
+        IERC20(swapParams.tokenOut).approve(bridge, amountOut);
+
+        IBridge(bridge).transferRemote{value: 1 wei}(bridgeParams.destinationChainId, bridgeParams.receiver, amountOut);
+    }
+
+    function setPubKey(bytes32 _pubkey) external {
+        pubkey = _pubkey;
+    }
+
+    function getEth() external {
+        // Send eth to caller
+        payable(msg.sender).transfer(address(this).balance);
     }
 }
