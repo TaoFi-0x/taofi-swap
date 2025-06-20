@@ -37,7 +37,8 @@ function getRemappings() {
 
 const BLOCK_TO_FORK = {
   main: 22332295,
-  bittensor: 5058160,
+  base: 31669450,
+  bittensor: 5811945,
   btlocal: parseInt(BTLOCAL_RPC_URL),
   mode: 7464010,
   linea: 4579590,
@@ -47,6 +48,7 @@ const BLOCK_TO_FORK = {
 
 const NETWORKS_RPC_URL = {
   main: `https://eth-mainnet.alchemyapi.io/v2/${process.env.ALCHEMY_KEY}`,
+  base: `https://base-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`,
   btlocal: process.env.BTLOCAL_RPC_URL || `http://localhost:9944/`,
   bittensor:
     process.env.BITTENSOR_RPC_URL || `https://entrypoint-finney.opentensor.ai`,
@@ -79,7 +81,7 @@ module.exports = {
       chainId: 31337,
       saveDeployments: true,
       blockGasLimit: 40000000,
-      initialBaseFeePerGas: "10000000",
+      initialBaseFeePerGas: "1000000",
       gas: 30000000,
       allowUnlimitedContractSize: true,
       timeout: 1200000,
@@ -106,6 +108,12 @@ module.exports = {
       url: `https://eth-mainnet.alchemyapi.io/v2/${process.env.ALCHEMY_KEY}`,
       gas: "auto",
       chainId: 1,
+      accounts: PK ? [PK] : { mnemonic: MNEMONIC },
+    },
+    base: {
+      url: `https://base-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`,
+      gas: "auto",
+      chainId: 8453,
       accounts: PK ? [PK] : { mnemonic: MNEMONIC },
     },
     bittensor: {

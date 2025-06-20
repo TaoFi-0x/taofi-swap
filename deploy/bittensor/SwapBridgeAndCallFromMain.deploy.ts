@@ -1,4 +1,4 @@
-import { deployments, getNamedAccounts } from "hardhat";
+import { deployments, getNamedAccounts, upgrades, ethers } from "hardhat";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { DeployFunction } from "hardhat-deploy/types";
 
@@ -8,14 +8,19 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     `Deploying SwapBridgeAndCallFromMain to ${hre.network.name}. Hit ctrl + c to abort`
   );
 
-  const { deploy } = deployments;
-  const { deployer } = await getNamedAccounts();
+  const { save, getArtifact } = deployments;
 
-  await deploy("SwapBridgeAndCallFromMain", {
-    contract: "SwapBridgeAndCallFromMain",
-    from: deployer,
-    args: [],
-    log: true
+  const impleContract = await ethers.getContractFactory("SwapBridgeAndCallFromMain");
+
+  // Deploy as an upgradeable contract
+  const proxy = await upgrades.deployProxy(impleContract, [], {
+    initializer: "initialize",
+    kind: "transparent", // or 'uups' if using UUPS
+  });
+  
+  save("SwapBridgeAndCallFromMain", {
+    abi: (await getArtifact("SwapBridgeAndCallFromMain")).abi,
+    address: proxy.address,
   });
 };
 
