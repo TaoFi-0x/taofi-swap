@@ -1,9 +1,10 @@
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IUniswapV3Router} from "@uniswap/v3-periphery/contracts/interfaces/IUniswapV3Router.sol";
-import {IWTAO} from "@tao-network/tao-contracts/contracts/IWTAO.sol";
-import {IStakingV2} from "@tao-network/tao-contracts/contracts/IStakingV2.sol";
-import {IBridge} from "@tao-network/tao-contracts/contracts/IBridge.sol";
+
+import {IUniswapV3Router} from "./interfaces/IUniswapV3Router.sol";
+import {IWTAO} from "./interfaces/IWTAO.sol";
+import {IStakingV2} from "./interfaces/IStakingV2.sol";
+import {IBridge} from "./interfaces/IBridge.sol";
 
 contract SwapAndStake {
     struct SwapParams {
@@ -159,35 +160,40 @@ contract SwapAndStake {
     }
 
     function unstakeSwapAndBridge(
-        UnstakeParams calldata unstakeParams,
+        UnstakeParams memory unstakeParams,
         IUniswapV3Router.ExactInputSingleParams calldata swapParams,
         BridgeParams calldata bridgeParams
-    ) external {
+    ) external payable {
         // Unstake TAO
-        uint256 formatAmount = unstakeParams.amount / 10 ** 9;
+
+        uint256 taoBalanceBefore = address(this).balance;
 
         (bool success,) = (stakingPrecompile).call(
             abi.encodeWithSelector(
-                IStakingV2.removeStake.selector, unstakeParams.hotkey, formatAmount, unstakeParams.netuid
+                IStakingV2.removeStake.selector, unstakeParams.hotkey, unstakeParams.amount, unstakeParams.netuid
             )
         );
         if (!success) {
             revert("Failed to remove stake");
         }
 
+        uint256 taoBalanceAfter = address(this).balance;
+        uint256 taoReceived = taoBalanceAfter - taoBalanceBefore;
+
         // Wrap TAO to WTAO
-        IWTAO(wtao).deposit{value: unstakeParams.amount}();
+        IWTAO(wtao).deposit{value: taoReceived}();
 
         // Approve and swap
-        IERC20(wtao).approve(uniswapRouter, unstakeParams.amount);
+        IERC20(wtao).approve(uniswapRouter, taoReceived);
+
+        swapParams.amountIn = taoReceived;
 
         // Swap WTAO to USDC
         uint256 amountOut = IUniswapV3Router(uniswapRouter).exactInputSingle(swapParams);
 
-        // Bridge USDC to remote
-        IERC20(swapParams.tokenOut).approve(bridge, amountOut);
-
-        IBridge(bridge).transferRemote{value: 1 wei}(bridgeParams.destinationChainId, bridgeParams.receiver, amountOut);
+        IBridge(bridge).transferRemote{value: msg.value}(
+            bridgeParams.destinationChainId, bridgeParams.receiver, amountOut
+        );
     }
 
     function setPubKey(bytes32 _pubkey) external {
