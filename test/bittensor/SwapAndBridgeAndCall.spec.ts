@@ -4,8 +4,9 @@ import { SimpleTx } from 'hardhat-deploy/types';
 import { impersonateAccountsHardhat } from '../helpers/misc-utils';
 import { parseEther } from 'ethers/lib/utils';
 
-const callURL = "https://sturdy-api.web.app/getLiFiSwapBridgeCall";
-const reverseCallURL = "https://sturdy-api.web.app/getLiFiSwapBridgeReverseCall";
+const callURL = "https://taofi-api.web.app/getBuyCall";
+const reverseCallURL = "https://taofi-api.web.app/getSellCall";
+const refundCallURL = "https://taofi-api.web.app/getRefundCall";
 
 describe('SwapAndBridgeAndCall', () => {
   it('Swap, Bridge, Stake', async () => {
@@ -23,8 +24,8 @@ describe('SwapAndBridgeAndCall', () => {
         decimals: 6,  // USDT decimals
         amount: "1000000", // 1 USDT
       },
-      expectedAlphaAmount: "165402952",
-      slippage: 200,  // 2%
+      expectedAlphaAmount: "1654029521",
+      slippage: 500,  // 5%
     };
 
     const response = await axios.post(callURL, postData);
@@ -37,7 +38,7 @@ describe('SwapAndBridgeAndCall', () => {
     }
 
     await rawTx({
-      value: '2400000000000000',  //0.0024ETH
+      value: '2200000000000000',  //0.0022ETH
       to: response.data.to,
       data: response.data.data,
       from: deployer
@@ -65,7 +66,29 @@ describe('SwapAndBridgeAndCall', () => {
     console.log("Response data:", response.data);
 
     await rawTx({
-      value: '2400000000000000',  //0.0024ETH
+      value: '1900000000000000',  //0.0019ETH
+      to: response.data.to,
+      data: response.data.data,
+      from: deployer
+    } as SimpleTx)
+  });
+});
+
+describe('SwapAndBridgeAndCall', () => {
+  it('Refund', async () => {
+    const { deployer } = await getNamedAccounts();
+    const { rawTx } = deployments;
+
+    const postData = {
+      receiver: deployer,
+      amount: "1000649" // 1.000649 USDC
+    };
+
+    const response = await axios.post(refundCallURL, postData);
+    console.log("Response data:", response.data);
+
+    await rawTx({
+      value: '1900000000000000',  //0.0019ETH
       to: response.data.to,
       data: response.data.data,
       from: deployer
