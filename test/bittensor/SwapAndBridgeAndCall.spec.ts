@@ -5,36 +5,55 @@ import { impersonateAccountsHardhat } from '../helpers/misc-utils';
 import { parseEther } from 'ethers/lib/utils';
 
 const callURL = "https://taofi-api.web.app/getBuyCall";
+const quoteURL = "https://taofi-api.web.app/getBuyQuote";
 const reverseCallURL = "https://taofi-api.web.app/getSellCall";
+const reverseQuoteURL = "https://taofi-api.web.app/getSellQuote";
 const refundCallURL = "https://taofi-api.web.app/getRefundCall";
 
 describe('SwapAndBridgeAndCall', () => {
   it('Swap, Bridge, Stake', async () => {
     const { deployer } = await getNamedAccounts();
     const { rawTx } = deployments;
+    const fromTokenAddress = "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2";  //USDT (base)
+    const fromDecimals = 6; // USDT decimals
+    const fromAmount = "1000000"  // 1 USDT
 
-    const postData = {
-      sender: deployer,
-      subnetInfo: {
-        netuid: 10,
-        hotkey: "0xacf34e305f1474e4817a66352af736fe6b0bcf5cdfeef18c441e24645c742339"
-      },
-      fromTokenInfo: {
-        address: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2", //USDT (base)
-        decimals: 6,  // USDT decimals
-        amount: "1000000", // 1 USDT
-      },
-      expectedAlphaAmount: "1654029521",
-      slippage: 500,  // 5%
-    };
-
-    const response = await axios.post(callURL, postData);
+    let response = await axios.post(
+      quoteURL, 
+      {
+        subnetuid: 10,
+        fromTokenInfo: {
+          address: fromTokenAddress,
+          decimals:fromDecimals,
+          amount: fromAmount 
+        }
+      }
+    );
     console.log("Response data:", response.data);
 
-    const fromToken = await ethers.getContractAt('ERC20', postData.fromTokenInfo.address);
+    response = await axios.post(
+      callURL, 
+      {
+        sender: deployer,
+        subnetInfo: {
+          netuid: 10,
+          hotkey: "0xacf34e305f1474e4817a66352af736fe6b0bcf5cdfeef18c441e24645c742339"
+        },
+        fromTokenInfo: {
+          address: fromTokenAddress,
+          decimals: fromDecimals,
+          amount: fromAmount
+        },
+        expectedAlphaAmount: response.data.expectedAlphaAmount,
+        slippage: 90,  // 0.09%
+      }
+    );
+    console.log("Response data:", response.data);
 
-    if ((await fromToken.allowance(deployer, response.data.to)).lt(postData.fromTokenInfo.amount)) {
-      await fromToken.approve(response.data.to, postData.fromTokenInfo.amount);
+    const fromToken = await ethers.getContractAt('ERC20', fromTokenAddress);
+
+    if ((await fromToken.allowance(deployer, response.data.to)).lt(fromAmount)) {
+      await fromToken.approve(response.data.to, fromAmount);
     }
 
     await rawTx({
@@ -51,19 +70,31 @@ describe('SwapAndBridgeAndCall', () => {
     const { deployer } = await getNamedAccounts();
     const { rawTx } = deployments;
 
-    const postData = {
-      receiver: deployer,
-      subnetInfo: {
-        netuid: 10,
-        hotkey: "0xacf34e305f1474e4817a66352af736fe6b0bcf5cdfeef18c441e24645c742339"
-      },
-      fromAmount: "100000000", // 0.1 SN10
-      expectedToAmount: "0",
-      slippage: 300,  // 3%
-    };
-
-    const response = await axios.post(reverseCallURL, postData);
+    let response = await axios.post(
+      reverseQuoteURL, 
+      {
+        subnetuid: 10, 
+        fromAmount: "100000000", // 0.1 SN10
+      }
+    );
     console.log("Response data:", response.data);
+
+
+    response = await axios.post(
+      reverseCallURL, 
+      {
+        receiver: deployer,
+        subnetInfo: {
+          netuid: 10,
+          hotkey: "0xacf34e305f1474e4817a66352af736fe6b0bcf5cdfeef18c441e24645c742339"
+        },
+        fromAmount: "100000000", // 0.1 SN10
+        expectedToAmount: response.data.expectedToAmount,
+        slippage: 90,  // 0.09%
+      }
+    );
+    console.log("Response data:", response.data);
+
 
     await rawTx({
       value: '1900000000000000',  //0.0019ETH
