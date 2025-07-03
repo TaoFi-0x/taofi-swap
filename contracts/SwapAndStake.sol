@@ -1,91 +1,119 @@
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+// SPDX-License-Identifier: ISC
+pragma solidity ^0.8.0;
 
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IUniswapV3Router} from "./interfaces/IUniswapV3Router.sol";
-import {IWTAO} from "./interfaces/IWTAO.sol";
+import {IStakingManager} from "./interfaces/IStakingManager.sol";
 import {IStakingV2} from "./interfaces/IStakingV2.sol";
 import {IBridge} from "./interfaces/IBridge.sol";
+import {IWTAO} from "./interfaces/IWTAO.sol";
 
-contract SwapAndStake {
+/**
+ * @title SwapAndStake
+ * @author kitanovicd (TaoFi)
+ * @notice This contract allows users to perform a sequence of actions: swapping an ERC20 token (like USDC) for WTAO,
+ * unwrapping it to native TAO, and staking it. It also provides functionality for the reverse process: unstaking,
+ * swapping TAO back to an ERC20, and bridging the asset to another chain.
+ */
+contract SwapAndStake is Ownable {
+    /// @notice Parameters for swapping USDC to TAO.
     struct SwapParams {
         uint256 usdcAmount;
-        uint256 minTaoToReceive;
+        uint256 minTaoToReceive; //unused
     }
 
+    /// @notice Parameters for staking TAO.
     struct StakeParams {
         bytes32 hotkey;
         uint256 netuid;
-        uint256 limitPrice;
+        uint256 minAlphaToReceive;
     }
 
+    /// @notice Parameters for unstaking TAO.
     struct UnstakeParams {
         bytes32 hotkey;
         uint256 netuid;
         uint256 amount;
-        uint256 limitPrice;
+        uint256 minTaoToReceive; //unused
     }
 
+    /// @notice Parameters for bridging assets to another chain.
     struct BridgeParams {
         uint32 destinationChainId;
         bytes32 receiver;
     }
 
+    /**
+     * @notice Emitted when a user successfully stakes TAO.
+     * @param user The address of the user who initiated the staking.
+     * @param hotkey The hotkey the TAO was staked to.
+     * @param netuid The network UID of the subnet.
+     * @param amount The amount of TAO that was staked.
+     */
     event Stake(address indexed user, bytes32 indexed hotkey, uint256 netuid, uint256 amount);
+    event Unstake(address indexed user, bytes32 indexed hotkey, uint256 netuid, uint256 amount);
+    event PubKeySet(bytes32 pubkey);
 
+    /**
+     * @dev Allows the contract to receive the native asset (e.g., ETH or TAO).
+     */
     receive() external payable {}
 
+    /// @notice The address of the USDC token contract.
     address public immutable usdc;
+    /// @notice The address of the Wrapped TAO (WTAO) token contract.
     address public immutable wtao;
+    /// @notice The address of the Uniswap V3 Router contract.
     address public immutable uniswapRouter;
+    /// @notice The address of the StakingV2 precompile contract.
     address public immutable stakingPrecompile;
+    /// @notice The address of the cross-chain bridge contract.
     address public immutable bridge;
+    /// @notice The address of the Staking Manager contract.
+    address public immutable stakingManager;
+    /// @notice A public key that can be set by the contract owner.
     bytes32 public pubkey;
 
-    constructor(address _usdc, address _wtao, address _uniswapRouter, address _stakingPrecompile, address _bridge) {
+    /**
+     * @notice Initializes the contract with the necessary external contract addresses.
+     * @param _usdc The address of the USDC token.
+     * @param _wtao The address of the WTAO token.
+     * @param _uniswapRouter The address of the Uniswap V3 Router.
+     * @param _stakingPrecompile The address of the StakingV2 precompile.
+     * @param _bridge The address of the bridge contract.
+     * @param _stakingManager The address of the Staking Manager contract.
+     */
+    constructor(
+        address _usdc,
+        address _wtao,
+        address _uniswapRouter,
+        address _stakingPrecompile,
+        address _bridge,
+        address _stakingManager
+    ) {
         usdc = _usdc;
         wtao = _wtao;
         uniswapRouter = _uniswapRouter;
         stakingPrecompile = _stakingPrecompile;
         bridge = _bridge;
+        stakingManager = _stakingManager;
     }
 
+    /**
+     * @notice Swaps a specified amount of an input token for TAO and stakes it.
+     * @dev The caller must have approved this contract to spend their input tokens.
+     * @param swapParams The parameters for the Uniswap V3 swap.
+     * @param stakeParams The parameters for staking, including hotkey and netuid.
+     */
     function swapAndStake(IUniswapV3Router.ExactInputSingleParams calldata swapParams, StakeParams calldata stakeParams)
         external
     {
-        // Take USDC
-        SafeERC20.safeTransferFrom(IERC20(swapParams.tokenIn), msg.sender, address(this), swapParams.amountIn);
-
-        // Swap USDC to TAO
-        IERC20(swapParams.tokenIn).approve(uniswapRouter, swapParams.amountIn);
-        uint256 amountOut = IUniswapV3Router(uniswapRouter).exactInputSingle(swapParams);
-
-        // If asset out is WETH, unwrap it
-        if (swapParams.tokenOut == wtao) {
-            IWTAO(wtao).withdraw(amountOut);
-        }
-
-        // Stake TAO
-        uint256 formatAmountOut = amountOut / 10 ** 9;
-
-        (bool success,) = payable(stakingPrecompile).call{value: formatAmountOut}(
-            abi.encodeWithSelector(
-                IStakingV2.addStake.selector, stakeParams.hotkey, formatAmountOut, stakeParams.netuid
-            )
+        require(swapParams.tokenIn == usdc, "Invalid tokenIn: must be USDC");
+        require(
+            swapParams.tokenOut == wtao || swapParams.tokenOut == address(0), "Invalid tokenOut: must be WTAO or TAO"
         );
-        if (!success) {
-            revert("Failed to add stake");
-        }
-
-        emit Stake(msg.sender, stakeParams.hotkey, stakeParams.netuid, amountOut);
-    }
-
-    function swapAndStakeWithTransfer(
-        IUniswapV3Router.ExactInputSingleParams memory swapParams,
-        StakeParams calldata stakeParams,
-        bytes32 receiverColdKey
-    ) external {
-        // Sender stakes full holdings
-        swapParams.amountIn = IERC20(swapParams.tokenIn).balanceOf(address(msg.sender));
 
         // Take USDC
         SafeERC20.safeTransferFrom(IERC20(swapParams.tokenIn), msg.sender, address(this), swapParams.amountIn);
@@ -99,83 +127,48 @@ contract SwapAndStake {
             IWTAO(wtao).withdraw(amountOut);
         }
 
-        // Stake TAO
-        uint256 formatAmountOut = amountOut / 10 ** 9;
-
-        (bool success,) = payable(stakingPrecompile).call{value: formatAmountOut}(
-            abi.encodeWithSelector(
-                IStakingV2.addStake.selector, stakeParams.hotkey, formatAmountOut, stakeParams.netuid
-            )
+        IStakingManager(stakingManager).stake{value: amountOut}(
+            stakeParams.hotkey, stakeParams.netuid, msg.sender, stakeParams.minAlphaToReceive
         );
-        if (!success) {
-            revert("Failed to add stake");
-        }
-
-        bytes32 senderColdKey = bytes32(uint256(uint160(msg.sender)));
-        if (receiverColdKey == bytes32(0)) {
-            receiverColdKey = senderColdKey; // If no receiver is specified, use the sender's coldkey
-        }
-        uint256 alphaStakeBalance =
-            IStakingV2(stakingPrecompile).getStake(stakeParams.hotkey, pubkey, stakeParams.netuid);
-
-        (bool successTransfer,) = (stakingPrecompile).call(
-            abi.encodeWithSelector(
-                IStakingV2.transferStake.selector,
-                receiverColdKey,
-                stakeParams.hotkey,
-                stakeParams.netuid,
-                stakeParams.netuid,
-                alphaStakeBalance
-            )
-        );
-        if (!successTransfer) {
-            revert("Failed to transfer stake");
-        }
 
         emit Stake(msg.sender, stakeParams.hotkey, stakeParams.netuid, amountOut);
     }
 
+    /**
+     * @notice Retrieves the stake balance (alpha tokens) for a given hotkey and coldkey pair in a subnet.
+     * @param hotkey The hotkey associated with the stake.
+     * @param coldkey The coldkey (owner) associated with the stake.
+     * @param netuid The network UID of the subnet.
+     * @return uint256 The balance of alpha tokens representing the stake.
+     */
     function getStake(bytes32 hotkey, bytes32 coldkey, uint256 netuid) public view returns (uint256) {
         uint256 alphaBalance = IStakingV2(stakingPrecompile).getStake(hotkey, coldkey, netuid);
         return alphaBalance;
     }
 
-    function transferStake(
-        bytes32 destinationColdkey,
-        bytes32 hotkey,
-        uint256 originNetuid,
-        uint256 destinationNetuid,
-        uint256 amount
-    ) external {
-        // Get the amount of stake to transfer
-        // We treat msg.sender (address) in the mock as a bytes32 coldkey key for simplicity.
-        (bool success,) = (stakingPrecompile).call(
-            abi.encodeWithSelector(
-                IStakingV2.transferStake.selector, destinationColdkey, hotkey, originNetuid, destinationNetuid, amount
-            )
-        );
-        if (!success) {
-            revert("Failed to transfer stake");
-        }
-    }
-
+    /**
+     * @notice Unstakes TAO, swaps it for an ERC20 token (e.g., USDC), and bridges the token to another chain.
+     * @dev The user must have approved this contract to spend their alpha (staking) tokens. This function is payable
+     * to allow the user to send native assets to cover any bridge fees.
+     * @param unstakeParams The parameters for unstaking from the subnet.
+     * @param swapParams The parameters for the Uniswap V3 swap (WTAO to USDC).
+     * @param bridgeParams The parameters for the cross-chain bridge transfer.
+     */
     function unstakeSwapAndBridge(
-        UnstakeParams memory unstakeParams,
-        IUniswapV3Router.ExactInputSingleParams calldata swapParams,
+        UnstakeParams calldata unstakeParams,
+        IUniswapV3Router.ExactInputSingleParams memory swapParams,
         BridgeParams calldata bridgeParams
     ) external payable {
         // Unstake TAO
+        address alphaToken = IStakingManager(stakingManager).alphaTokens(unstakeParams.netuid);
+
+        IERC20(alphaToken).transferFrom(msg.sender, address(this), unstakeParams.amount);
 
         uint256 taoBalanceBefore = address(this).balance;
 
-        (bool success,) = (stakingPrecompile).call(
-            abi.encodeWithSelector(
-                IStakingV2.removeStake.selector, unstakeParams.hotkey, unstakeParams.amount, unstakeParams.netuid
-            )
+        IStakingManager(stakingManager).unstake(
+            unstakeParams.hotkey, unstakeParams.netuid, unstakeParams.amount, address(this)
         );
-        if (!success) {
-            revert("Failed to remove stake");
-        }
 
         uint256 taoBalanceAfter = address(this).balance;
         uint256 taoReceived = taoBalanceAfter - taoBalanceBefore;
@@ -191,17 +184,22 @@ contract SwapAndStake {
         // Swap WTAO to USDC
         uint256 amountOut = IUniswapV3Router(uniswapRouter).exactInputSingle(swapParams);
 
+        IERC20(usdc).approve(bridge, amountOut);
+
         IBridge(bridge).transferRemote{value: msg.value}(
             bridgeParams.destinationChainId, bridgeParams.receiver, amountOut
         );
+
+        emit Unstake(msg.sender, unstakeParams.hotkey, unstakeParams.netuid, unstakeParams.amount);
     }
 
-    function setPubKey(bytes32 _pubkey) external {
+    /**
+     * @notice Sets the public key.
+     * @dev Only the contract owner can call this function.
+     * @param _pubkey The new public key to set.
+     */
+    function setPubKey(bytes32 _pubkey) external onlyOwner {
         pubkey = _pubkey;
-    }
-
-    function getEth() external {
-        // Send eth to caller
-        payable(msg.sender).transfer(address(this).balance);
+        emit PubKeySet(_pubkey);
     }
 }
