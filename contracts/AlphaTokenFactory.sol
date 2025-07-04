@@ -20,7 +20,6 @@ contract AlphaTokenFactory is UpgradeableBeacon {
         bytes memory bytecode = abi.encodePacked(type(BeaconProxy).creationCode, abi.encode(address(this), initializer));
 
         address proxy = Create2.deploy(0, salt, bytecode);
-
         Ownable(proxy).transferOwnership(msg.sender);
 
         return proxy;

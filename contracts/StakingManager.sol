@@ -7,6 +7,7 @@ import {IAlphaToken} from "./interfaces/IAlphaToken.sol";
 import {IAlphaTokenFactory} from "./interfaces/IAlphaTokenFactory.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
  * @title StakingManager
@@ -64,6 +65,7 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
     function initialize(address _stakingPrecompile, address _alphaTokenFactory) public initializer {
         require(_stakingPrecompile != address(0), "Staking precompile cannot be zero address");
         require(_alphaTokenFactory != address(0), "Factory cannot be zero address");
+
         __Ownable_init();
         stakingPrecompile = _stakingPrecompile;
         alphaTokenFactory = _alphaTokenFactory;
@@ -158,8 +160,12 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
      * @return The address of the newly deployed token contract.
      */
     function _deployNewAlphaToken(uint256 netuid) internal returns (address) {
-        address alphaToken = IAlphaTokenFactory(alphaTokenFactory).deployNewAlphaToken("Alpha", "ALPHA", netuid);
+        string memory name = string(abi.encodePacked("Subtensor Alpha - ", Strings.toString(netuid)));
+        string memory symbol = string(abi.encodePacked("ALPHA-", Strings.toString(netuid)));
+
+        address alphaToken = IAlphaTokenFactory(alphaTokenFactory).deployNewAlphaToken(name, symbol, netuid);
         alphaTokens[netuid] = alphaToken;
+
         emit AlphaTokenDeployed(netuid, alphaToken);
         return alphaToken;
     }

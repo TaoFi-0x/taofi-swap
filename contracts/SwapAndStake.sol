@@ -54,7 +54,6 @@ contract SwapAndStake is Ownable {
      */
     event Stake(address indexed user, bytes32 indexed hotkey, uint256 netuid, uint256 amount);
     event Unstake(address indexed user, bytes32 indexed hotkey, uint256 netuid, uint256 amount);
-    event PubKeySet(bytes32 pubkey);
 
     /**
      * @dev Allows the contract to receive the native asset (e.g., ETH or TAO).
@@ -73,8 +72,6 @@ contract SwapAndStake is Ownable {
     address public immutable bridge;
     /// @notice The address of the Staking Manager contract.
     address public immutable stakingManager;
-    /// @notice A public key that can be set by the contract owner.
-    bytes32 public pubkey;
 
     /**
      * @notice Initializes the contract with the necessary external contract addresses.
@@ -107,13 +104,10 @@ contract SwapAndStake is Ownable {
      * @param swapParams The parameters for the Uniswap V3 swap.
      * @param stakeParams The parameters for staking, including hotkey and netuid.
      */
-    function swapAndStake(IUniswapV3Router.ExactInputSingleParams calldata swapParams, StakeParams calldata stakeParams)
+    function swapAndStake(IUniswapV3Router.ExactInputSingleParams memory swapParams, StakeParams calldata stakeParams)
         external
     {
-        require(swapParams.tokenIn == usdc, "Invalid tokenIn: must be USDC");
-        require(
-            swapParams.tokenOut == wtao || swapParams.tokenOut == address(0), "Invalid tokenOut: must be WTAO or TAO"
-        );
+        swapParams.amountIn = IERC20(swapParams.tokenIn).balanceOf(address(msg.sender));
 
         // Take USDC
         SafeERC20.safeTransferFrom(IERC20(swapParams.tokenIn), msg.sender, address(this), swapParams.amountIn);
@@ -132,18 +126,6 @@ contract SwapAndStake is Ownable {
         );
 
         emit Stake(msg.sender, stakeParams.hotkey, stakeParams.netuid, amountOut);
-    }
-
-    /**
-     * @notice Retrieves the stake balance (alpha tokens) for a given hotkey and coldkey pair in a subnet.
-     * @param hotkey The hotkey associated with the stake.
-     * @param coldkey The coldkey (owner) associated with the stake.
-     * @param netuid The network UID of the subnet.
-     * @return uint256 The balance of alpha tokens representing the stake.
-     */
-    function getStake(bytes32 hotkey, bytes32 coldkey, uint256 netuid) public view returns (uint256) {
-        uint256 alphaBalance = IStakingV2(stakingPrecompile).getStake(hotkey, coldkey, netuid);
-        return alphaBalance;
     }
 
     /**
@@ -191,15 +173,5 @@ contract SwapAndStake is Ownable {
         );
 
         emit Unstake(msg.sender, unstakeParams.hotkey, unstakeParams.netuid, unstakeParams.amount);
-    }
-
-    /**
-     * @notice Sets the public key.
-     * @dev Only the contract owner can call this function.
-     * @param _pubkey The new public key to set.
-     */
-    function setPubKey(bytes32 _pubkey) external onlyOwner {
-        pubkey = _pubkey;
-        emit PubKeySet(_pubkey);
     }
 }
