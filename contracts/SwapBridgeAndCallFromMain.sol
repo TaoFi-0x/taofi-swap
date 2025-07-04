@@ -22,6 +22,14 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
 
+    struct SwapParams {
+        address fromToken;
+        uint256 fromAmount;
+        address approvalAddress;
+        address target;
+        bytes data;
+    }
+
     struct RemoteCallsParams {
         bytes32 router;
         bytes32 ism;
@@ -37,22 +45,23 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
 
     uint256 private constant PERCENTAGE_FACTOR = 100_00;
     uint32 private constant DESTINATION_CHAIN_ID = 964;
-    address private constant LIFI_TARGET = 0xcaa11bdE05977B3631167028862BE2a173976CA1; // LiFi Target Address
 
     uint256 public fee;
-    uint256 public feeAmount;
-
     address public bridgeToken;
     address public bridge;
     address public interchainAccountRouter;
+    address public treasury;
+
+    mapping(address => bool) public isTargetAddressBlacklisted;
 
     event FeeUpdated(uint256 newFee);
     event BridgeTokenUpdated(address newBridgeToken);
     event BridgeUpdated(address newBridge);
     event InterchainAccountRouterUpdated(address newInterchainAccountRouter);
     event SwapAndBridgeExecuted(address indexed target, bytes data);
-    event FeeWithdrawn(uint256 amount, address treasury);
-    event FeeTag(bytes tag, uint256 feeAmount);
+    event FeeChargedWithReferral(bytes tag, uint256 feeAmount);
+    event TreasuryUpdated(address newTreasury);
+    event TargetAddressBlacklisted(address indexed target);
 
     error INVALID_FEE_VALUE();
     error INVALID_ADDRESS();
@@ -114,35 +123,46 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
     }
 
     /**
-     * @dev withdraw fee from the contract
-     * @param _amount The withdrawal fee amount
-     * @param _treasury The treasury address
+     * @dev Set the treasury address.
+     * @param _treasury - The address of the treasury.
      */
-    function withdrawFee(uint256 _amount, address _treasury) external payable onlyOwner {
-        feeAmount -= _amount;
-        IERC20(bridgeToken).safeTransfer(_treasury, _amount);
-        emit FeeWithdrawn(_amount, _treasury);
+    function setTreasury(address _treasury) external payable onlyOwner {
+        treasury = _treasury;
+
+        emit TreasuryUpdated(_treasury);
+    }
+
+    /**
+     * @dev Set the target address to be blacklisted.
+     * @param _target - The address of the target.
+     * @param _isBlacklisted - The boolean value to determine if the target is blacklisted.
+     */
+    function setTargetAddressBlacklisted(address _target, bool _isBlacklisted) external payable onlyOwner {
+        isTargetAddressBlacklisted[_target] = _isBlacklisted;
+
+        emit TargetAddressBlacklisted(_target);
     }
 
     /**
      * @dev Executes a token swap via LiFi, bridge to Bittensor EVM and call remote function of Bittensor EVM contract.
      *      ex: ERC20/ETH(Ethereum) -> USDC(Ethereum) -> USDC(Bittensor EVM) -> Remote Call(Bittensor EVM)
-     * @param _fromToken The address of the swap from token
-     * @param _fromAmount The amount of the swap from token
-     * @param _approvalAddress The address of the approval address of lifi swap.
-     * @param _target The address of the lifi related contract.
-     * @param _data The call data to be sent to the target contract.
-     * @param _params The call data array for the remote call of the dest chain.
+     * @param _swapParams The parameters for the swap. Including the from token, from amount, approval address, target and data.
+     * @param _params The parameters for the remote call.
+     * @param _bridgeCost The cost of the bridge.
+     * @param _feeReferral The referral fee.
      */
     function lifiSwapBridgeAndCall(
-        address _fromToken,
-        uint256 _fromAmount,
-        address _approvalAddress,
-        address _target,
-        bytes calldata splitFeeTag,
-        bytes calldata _data,
-        RemoteCallsParams calldata _params
+        SwapParams calldata _swapParams,
+        RemoteCallsParams calldata _params,
+        uint256 _bridgeCost,
+        bytes calldata _feeReferral
     ) external payable nonReentrant {
+        address _fromToken = _swapParams.fromToken;
+        uint256 _fromAmount = _swapParams.fromAmount;
+        address _approvalAddress = _swapParams.approvalAddress;
+        address _target = _swapParams.target;
+        bytes calldata _data = _swapParams.data;
+
         if (_fromAmount == 0) revert INVALID_VALUE();
 
         uint256 valueSpent = _fromToken == address(0) ? _fromAmount : 0;
@@ -153,8 +173,7 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
             IERC20(_fromToken).safeTransferFrom(msg.sender, address(this), _fromAmount);
         } else {
             if (_approvalAddress == address(0)) revert INVALID_ADDRESS();
-            if (_target == address(0) || _target != LIFI_TARGET) revert INVALID_ADDRESS();
-            if (_approvalAddress != LIFI_TARGET) revert INVALID_ADDRESS();
+            if (_target == address(0)) revert INVALID_ADDRESS();
             if (!Address.isContract(_target)) revert NOT_CONTRACT();
 
             if (_fromToken == address(0)) {
@@ -178,7 +197,7 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
             emit SwapAndBridgeExecuted(_target, _data);
         }
 
-        _bridgeAndCall(_params, valueSpent, splitFeeTag);
+        _bridgeAndCall(_params, valueSpent, _bridgeCost, _feeReferral);
     }
 
     /**
@@ -197,22 +216,23 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
         );
     }
 
-    function _bridgeAndCall(RemoteCallsParams calldata _params, uint256 valueSpent, bytes calldata splitFeeTag)
-        internal
-    {
+    function _bridgeAndCall(
+        RemoteCallsParams calldata _params,
+        uint256 valueSpent,
+        uint256 _bridgeCost,
+        bytes calldata feeReferral
+    ) internal {
         address _toToken = bridgeToken;
         address _bridge = bridge;
-        uint256 toAmount = IERC20(_toToken).balanceOf(address(this)) - feeAmount;
+        uint256 toAmount = IERC20(_toToken).balanceOf(address(this));
         if (toAmount == 0) revert SWAP_FAILED();
 
         // fee processing
         uint256 swapAmount = (toAmount * (PERCENTAGE_FACTOR - fee)) / PERCENTAGE_FACTOR;
+        uint256 feeAmount = toAmount - swapAmount;
 
-        feeAmount += toAmount - swapAmount;
-        emit FeeTag(splitFeeTag, feeAmount);
-
-        // Bridge + Call via Hyperlane
-        if (msg.value <= 1 wei) revert BRIDGE_FAILED();
+        IERC20(_toToken).safeTransfer(treasury, feeAmount);
+        emit FeeChargedWithReferral(feeReferral, feeAmount);
 
         IERC20(_toToken).safeApprove(_bridge, 0);
         IERC20(_toToken).safeApprove(_bridge, swapAmount);
@@ -229,14 +249,14 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
                 ica.getRemoteInterchainAccount(address(this), routerAddress, ismAddress, userSpecificSalt);
 
             // Bridge
-            IBridge(_bridge).transferRemote{value: 1 wei}(
+            IBridge(_bridge).transferRemote{value: _bridgeCost}(
                 DESTINATION_CHAIN_ID, bytes32(uint256(uint160(userIcaOnDestination))), swapAmount
             );
         }
 
         // Execute the specified interchain calls using the remaining gas funds
         IInterchainAccountRouterWithOverrides(interchainAccountRouter).callRemoteWithOverrides{
-            value: msg.value - valueSpent - 1 wei
+            value: msg.value - valueSpent - _bridgeCost
         }(
             DESTINATION_CHAIN_ID,
             _params.router, // Or your bytes32 router override
@@ -248,7 +268,7 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
     }
 
     function _executeExternalCall(address target, uint256 value, bytes calldata data) internal {
-        if (target == interchainAccountRouter) {
+        if (isTargetAddressBlacklisted[target]) {
             revert INVALID_TARGET();
         }
 
