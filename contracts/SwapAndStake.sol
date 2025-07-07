@@ -21,7 +21,6 @@ contract SwapAndStake is Ownable {
     /// @notice Parameters for swapping USDC to TAO.
     struct SwapParams {
         uint256 usdcAmount;
-        uint256 minTaoToReceive; //unused
     }
 
     /// @notice Parameters for staking TAO.
@@ -36,7 +35,6 @@ contract SwapAndStake is Ownable {
         bytes32 hotkey;
         uint256 netuid;
         uint256 amount;
-        uint256 minTaoToReceive; //unused
     }
 
     /// @notice Parameters for bridging assets to another chain.
