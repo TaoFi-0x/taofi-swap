@@ -18,11 +18,6 @@ import {IWTAO} from "./interfaces/IWTAO.sol";
  * swapping TAO back to an ERC20, and bridging the asset to another chain.
  */
 contract SwapAndStake is Ownable {
-    /// @notice Parameters for swapping USDC to TAO.
-    struct SwapParams {
-        uint256 usdcAmount;
-    }
-
     /// @notice Parameters for staking TAO.
     struct StakeParams {
         bytes32 hotkey;
