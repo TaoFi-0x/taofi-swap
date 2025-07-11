@@ -135,7 +135,7 @@ contract SwapAndStake is Ownable {
         BridgeParams calldata bridgeParams
     ) external payable {
         // Unstake TAO
-        address alphaToken = IStakingManager(stakingManager).alphaTokens(unstakeParams.netuid);
+        address alphaToken = IStakingManager(stakingManager).alphaTokens(unstakeParams.netuid, unstakeParams.hotkey);
 
         IERC20(alphaToken).transferFrom(msg.sender, address(this), unstakeParams.amount);
 

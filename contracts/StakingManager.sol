@@ -8,6 +8,8 @@ import {IAlphaTokenFactory} from "./interfaces/IAlphaTokenFactory.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title StakingManager
@@ -31,8 +33,8 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
     /// @notice The public key associated with this staking manager's coldkey on the Subtensor network.
     bytes32 public pubKey;
 
-    /// @notice Maps a network UID (netuid) to its corresponding AlphaToken contract address.
-    mapping(uint256 netuid => address alphaToken) public alphaTokens;
+    /// @notice Maps a network UID (netuid) and hotkey to its corresponding AlphaToken contract address.
+    mapping(uint256 netuid => mapping(bytes32 hotkey => address alphaToken)) public alphaTokens;
 
     // --- Errors ---
     error AddStakeFailed();
@@ -116,8 +118,8 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
         uint256 taoAmount = msg.value;
         if (taoAmount == 0) revert InvalidAmount();
 
-        if (alphaTokens[netuid] == address(0)) {
-            _deployNewAlphaToken(netuid);
+        if (alphaTokens[netuid][hotkey] == address(0)) {
+            _deployNewAlphaToken(netuid, hotkey);
         }
 
         uint256 alphaReceived = _addStake(hotkey, netuid, taoAmount);
@@ -126,7 +128,7 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
             revert InsufficientAmountOut();
         }
 
-        IAlphaToken(alphaTokens[netuid]).mint(receiver, alphaReceived);
+        IAlphaToken(alphaTokens[netuid][hotkey]).mint(receiver, alphaReceived);
         emit Staked(msg.sender, netuid, hotkey, taoAmount, alphaReceived);
     }
 
@@ -142,7 +144,7 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
         if (amount == 0) revert InvalidAmount();
 
         // Effect: Burn the tokens first to prevent reentrancy abuse
-        IAlphaToken(alphaTokens[netuid]).burn(msg.sender, amount);
+        IAlphaToken(alphaTokens[netuid][hotkey]).burn(msg.sender, amount);
 
         // Interaction: Call the precompile to remove stake
         uint256 taoReceived = _removeStake(hotkey, netuid, amount);
@@ -159,12 +161,10 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
      * @param netuid The network UID to deploy a token for.
      * @return The address of the newly deployed token contract.
      */
-    function _deployNewAlphaToken(uint256 netuid) internal returns (address) {
-        string memory name = string(abi.encodePacked("Subtensor Alpha - ", Strings.toString(netuid)));
-        string memory symbol = string(abi.encodePacked("ALPHA-", Strings.toString(netuid)));
-
-        address alphaToken = IAlphaTokenFactory(alphaTokenFactory).deployNewAlphaToken(name, symbol, netuid);
-        alphaTokens[netuid] = alphaToken;
+    function _deployNewAlphaToken(uint256 netuid, bytes32 hotkey) internal returns (address) {
+        string memory name = string(abi.encodePacked("SN", Strings.toString(netuid), "-", hotkey));
+        address alphaToken = IAlphaTokenFactory(alphaTokenFactory).deployNewAlphaToken(name, name, netuid, hotkey);
+        alphaTokens[netuid][hotkey] = alphaToken;
 
         emit AlphaTokenDeployed(netuid, alphaToken);
         return alphaToken;
@@ -175,7 +175,9 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
      * @return alphaAmount The amount of stake added, in AlphaToken denomination.
      */
     function _addStake(bytes32 hotkey, uint256 netuid, uint256 taoAmount) internal returns (uint256 alphaAmount) {
-        uint256 alphaBalanceBefore = IStakingV2(stakingPrecompile).getStake(hotkey, pubKey, netuid);
+        IERC20 alphaToken = IERC20(alphaTokens[netuid][hotkey]);
+        uint256 alphaBalanceBefore = _getStake(netuid, hotkey);
+        uint256 totalSharesBefore = alphaToken.totalSupply();
 
         // The amount is sent via msg.value to this contract, then forwarded here.
         (bool success,) = stakingPrecompile.call{value: taoAmount}(
@@ -186,8 +188,11 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
             revert AddStakeFailed();
         }
 
-        uint256 alphaBalanceAfter = IStakingV2(stakingPrecompile).getStake(hotkey, pubKey, netuid);
-        return alphaBalanceAfter - alphaBalanceBefore;
+        uint256 alphaBalanceAfter = _getStake(netuid, hotkey);
+        uint256 alphaReceived = alphaBalanceAfter - alphaBalanceBefore;
+
+        uint256 sharesToMint = Math.mulDiv(alphaReceived, totalSharesBefore + 1, alphaBalanceBefore + 1);
+        return sharesToMint;
     }
 
     /**
@@ -196,9 +201,16 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
      */
     function _removeStake(bytes32 hotkey, uint256 netuid, uint256 amount) internal returns (uint256 taoAmount) {
         uint256 taoBalanceBefore = address(this).balance;
+        IERC20 alphaToken = IERC20(alphaTokens[netuid][hotkey]);
 
-        (bool success,) =
-            stakingPrecompile.call(abi.encodeWithSelector(IStakingV2.removeStake.selector, hotkey, amount, netuid));
+        uint256 totalShares = alphaToken.totalSupply();
+        uint256 totalAssets = _getStake(netuid, hotkey);
+
+        uint256 alphaToUnstake = Math.mulDiv(amount, totalAssets + 1, totalShares + 1);
+
+        (bool success,) = stakingPrecompile.call(
+            abi.encodeWithSelector(IStakingV2.removeStake.selector, hotkey, alphaToUnstake, netuid)
+        );
 
         if (!success) {
             revert RemoveStakeFailed();
@@ -208,18 +220,7 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
         return taoBalanceAfter - taoBalanceBefore;
     }
 
-    /**
-     * @dev Internal function to transfer stake between hotkeys.
-     */
-    function _transferStake(bytes32 destinationColdkey, bytes32 hotkey, uint256 netuid, uint256 amount) internal {
-        (bool success,) = stakingPrecompile.call(
-            abi.encodeWithSelector(
-                IStakingV2.transferStake.selector, destinationColdkey, hotkey, netuid, netuid, amount
-            )
-        );
-
-        if (!success) {
-            revert TransferStakeFailed();
-        }
+    function _getStake(uint256 netuid, bytes32 hotkey) internal view returns (uint256) {
+        return IStakingV2(stakingPrecompile).getStake(hotkey, pubKey, netuid);
     }
 }
