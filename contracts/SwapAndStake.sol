@@ -141,8 +141,10 @@ contract SwapAndStake is Ownable {
 
         uint256 taoBalanceBefore = address(this).balance;
 
+        // Since the minimum output check (amountOutMinimum) is already enforced externally via swapParams,
+        // we can safely pass minAmountTaoReceived = 0 here to allow unstaking without redundant validation.
         IStakingManager(stakingManager).unstake(
-            unstakeParams.hotkey, unstakeParams.netuid, unstakeParams.amount, address(this)
+            unstakeParams.hotkey, unstakeParams.netuid, unstakeParams.amount, address(this), 0
         );
 
         uint256 taoBalanceAfter = address(this).balance;

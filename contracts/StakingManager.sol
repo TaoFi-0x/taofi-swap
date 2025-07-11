@@ -41,6 +41,7 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
     error InsufficientAmountOut();
     error EtherTransferFailed();
     error InvalidAmount();
+    error InsufficientTaoReceived(uint256 received, uint256 minExpected);
 
     // --- Events ---
     event Staked(address indexed user, uint256 indexed netuid, bytes32 hotkey, uint256 taoAmount, uint256 alphaAmount);
@@ -132,13 +133,20 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
 
     /**
      * @notice Burns a user's AlphaTokens and sends the corresponding TAO back to them.
-     * @dev This function is protected against reentrancy attacks.
+     * @dev This function is protected against reentrancy attacks and includes a slippage guard.
      * @param hotkey The hotkey of the validator/miner to unstake from.
      * @param netuid The network UID of the subnet.
      * @param amount The amount of AlphaTokens to burn.
      * @param receiver The address that will receive the unstaked TAO.
+     * @param minAmountTaoReceived The minimum amount of TAO expected by the user.
      */
-    function unstake(bytes32 hotkey, uint256 netuid, uint256 amount, address receiver) external nonReentrant {
+    function unstake(
+        bytes32 hotkey,
+        uint256 netuid,
+        uint256 amount,
+        address receiver,
+        uint256 minAmountTaoReceived
+    ) external nonReentrant {
         if (amount == 0) revert InvalidAmount();
 
         // Effect: Burn the tokens first to prevent reentrancy abuse
@@ -146,6 +154,9 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
 
         // Interaction: Call the precompile to remove stake
         uint256 taoReceived = _removeStake(hotkey, netuid, amount);
+
+        // Slippage protection
+        if (taoReceived < minAmountTaoReceived) revert InsufficientTaoReceived(taoReceived, minAmountTaoReceived);
 
         // Interaction: Send TAO safely to the receiver
         (bool success,) = receiver.call{value: taoReceived}("");
