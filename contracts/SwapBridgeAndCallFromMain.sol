@@ -53,6 +53,9 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
     address public treasury;
 
     mapping(address => bool) public isTargetAddressBlacklisted;
+    
+    // to => selector => allowed
+    mapping(bytes32 => mapping(bytes4 => bool)) public allowedRemoteCalls;
 
     event FeeUpdated(uint256 newFee);
     event BridgeTokenUpdated(address newBridgeToken);
@@ -62,6 +65,7 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
     event FeeChargedWithReferral(bytes tag, uint256 feeAmount);
     event TreasuryUpdated(address newTreasury);
     event TargetAddressBlacklisted(address indexed target);
+    event AllowedRemoteCallUpdated(bytes32 indexed target, bytes4 indexed selector, bool allowed);
 
     error INVALID_FEE_VALUE();
     error INVALID_ADDRESS();
@@ -71,6 +75,7 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
     error BRIDGE_FAILED();
     error EXTERNAL_CALL_FAILED();
     error INVALID_TARGET();
+    error UNAUTHORIZED_CALL_TYPE();
 
     function initialize() external initializer {
         __Ownable_init();
@@ -144,6 +149,18 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
     }
 
     /**
+     * @dev Adds or removes an allowed remote function selector for a given target.
+     * @param _target The target address (as bytes32) to control permissions for.
+     * @param _selector The 4-byte function selector to allow or disallow.
+     * @param _allowed A boolean indicating whether the call is permitted.
+     */
+    function setAllowedRemoteCall(bytes32 _target, bytes4 _selector, bool _allowed) external payable onlyOwner {
+        allowedRemoteCalls[_target][_selector] = _allowed;
+
+        emit AllowedRemoteCallUpdated(_target, _selector, _allowed);
+    }
+
+    /**
      * @dev Executes a token swap via LiFi, bridge to Bittensor EVM and call remote function of Bittensor EVM contract.
      *      ex: ERC20/ETH(Ethereum) -> USDC(Ethereum) -> USDC(Bittensor EVM) -> Remote Call(Bittensor EVM)
      * @param _swapParams The parameters for the swap. Including the from token, from amount, approval address, target and data.
@@ -204,7 +221,12 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
      * @dev Executes a dest chain function to process exception case
      * @param _params The call data array for the remote call of the dest chain.
      */
-    function remoteCall(RemoteCallsParams calldata _params) public payable nonReentrant {
+    function remoteCall(RemoteCallsParams calldata _params) external payable nonReentrant {
+        uint256 callCnt = _params.calls.length;
+        for (uint256 i; i < callCnt; ++i) {
+            if (!isAllowedRemoteCall(_params.calls[i])) revert UNAUTHORIZED_CALL_TYPE();
+        }
+
         bytes32 userSpecificSalt = bytes32(uint256(uint160(msg.sender)));
         IInterchainAccountRouterWithOverrides(interchainAccountRouter).callRemoteWithOverrides{value: msg.value}(
             DESTINATION_CHAIN_ID,
@@ -216,9 +238,21 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
         );
     }
 
+    /**
+     * @dev Checks whether a given remote call is allowed.
+     *      Validates both the target and the function selector against the whitelist.
+     * @param _call The call struct containing the target, value, and calldata.
+     * @return True if the call is authorized, false otherwise.
+     */
+    function isAllowedRemoteCall(Call calldata _call) public view returns (bool) {
+        if (_call.data.length < 4) return false; // Invalid call data
+
+        return allowedRemoteCalls[_call.to][bytes4(_call.data)];
+    }
+
     function _bridgeAndCall(
         RemoteCallsParams calldata _params,
-        uint256 valueSpent,
+        uint256 valueSpent, 
         uint256 _bridgeCost,
         bytes calldata feeReferral
     ) internal {
