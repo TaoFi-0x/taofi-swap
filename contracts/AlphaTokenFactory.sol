@@ -9,12 +9,13 @@ import {AlphaToken} from "./AlphaToken.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract AlphaTokenFactory is UpgradeableBeacon {
-    uint256 public count; //unused
-
     constructor(address _implementation) UpgradeableBeacon(_implementation) {}
 
-    function deployNewAlphaToken(string memory name, string memory symbol, uint256 netuid) external returns (address) {
-        bytes32 salt = keccak256(abi.encode(msg.sender, netuid));
+    function deployNewAlphaToken(string memory name, string memory symbol, uint256 netuid, bytes32 hotkey)
+        external
+        returns (address)
+    {
+        bytes32 salt = keccak256(abi.encode(msg.sender, netuid, hotkey));
 
         bytes memory initializer = abi.encodeWithSelector(AlphaToken.initialize.selector, name, symbol);
         bytes memory bytecode = abi.encodePacked(type(BeaconProxy).creationCode, abi.encode(address(this), initializer));

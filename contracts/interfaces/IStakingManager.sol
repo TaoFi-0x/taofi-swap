@@ -2,7 +2,7 @@
 pragma solidity ^0.8.21;
 
 interface IStakingManager {
-    function alphaTokens(uint256 netuid) external view returns (address);
+    function alphaTokens(uint256 netuid, bytes32 hotkey) external view returns (address);
 
     function stake(bytes32 hotkey, uint256 netuid, address receiver, uint256 minAlphaToReceive) external payable;
 
