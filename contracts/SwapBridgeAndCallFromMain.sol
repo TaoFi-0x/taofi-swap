@@ -80,6 +80,7 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
     function initialize() external initializer {
         __Ownable_init();
         __ReentrancyGuard_init();
+        _disableInitializers();
     }
 
     /**
