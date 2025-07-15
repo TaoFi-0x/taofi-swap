@@ -48,6 +48,9 @@ contract SwapAndStake is Ownable {
     event Stake(address indexed user, bytes32 indexed hotkey, uint256 netuid, uint256 amount);
     event Unstake(address indexed user, bytes32 indexed hotkey, uint256 netuid, uint256 amount);
 
+    error INVALID_SWAP_TOKENOUT();
+    error INVALID_SWAP_TOKENIN();
+
     /**
      * @dev Allows the contract to receive the native asset (e.g., ETH or TAO).
      */
@@ -134,6 +137,9 @@ contract SwapAndStake is Ownable {
         IUniswapV3Router.ExactInputSingleParams memory swapParams,
         BridgeParams calldata bridgeParams
     ) external payable {
+        if (swapParams.tokenIn != wtao) revert INVALID_SWAP_TOKENIN();
+        if (swapParams.tokenOut != usdc) revert INVALID_SWAP_TOKENOUT();
+
         // Unstake TAO
         address alphaToken = IStakingManager(stakingManager).alphaTokens(unstakeParams.netuid, unstakeParams.hotkey);
 
