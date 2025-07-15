@@ -97,6 +97,9 @@ contract SwapAndStake is Ownable {
     /**
      * @notice Swaps a specified amount of an input token for TAO and stakes it.
      * @dev The caller must have approved this contract to spend their input tokens.
+     *      Note: This function will override swapParams.amountIn to use the user's entire 
+     *      balance of the input token and swapParams.recipient to ensure tokens are received
+     *      by this contract for staking.
      * @param swapParams The parameters for the Uniswap V3 swap.
      * @param stakeParams The parameters for staking, including hotkey and netuid.
      */
@@ -104,6 +107,7 @@ contract SwapAndStake is Ownable {
         external
     {
         swapParams.amountIn = IERC20(swapParams.tokenIn).balanceOf(address(msg.sender));
+        swapParams.recipient = address(this);
 
         // Take USDC
         SafeERC20.safeTransferFrom(IERC20(swapParams.tokenIn), msg.sender, address(this), swapParams.amountIn);
