@@ -116,7 +116,7 @@ contract SwapAndStake is Ownable {
         IERC20(swapParams.tokenIn).approve(uniswapRouter, swapParams.amountIn);
         uint256 amountOut = IUniswapV3Router(uniswapRouter).exactInputSingle(swapParams);
 
-        // If asset out is WETH, unwrap it
+        // If asset out is WTAO, unwrap it
         if (swapParams.tokenOut == wtao) {
             IWTAO(wtao).withdraw(amountOut);
         }
