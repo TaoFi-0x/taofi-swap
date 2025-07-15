@@ -196,7 +196,7 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
 
             if (_fromToken == address(0)) {
                 // fromToken is ETH
-                if (msg.value < _fromAmount) revert SWAP_FAILED();
+                if (msg.value < _fromAmount + _bridgeCost) revert SWAP_FAILED();
 
                 // LiFi Swap
                 _executeExternalCall(_target, _fromAmount, _data);
