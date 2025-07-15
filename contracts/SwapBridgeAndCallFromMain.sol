@@ -205,8 +205,7 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
                 IERC20(_fromToken).safeTransferFrom(msg.sender, address(this), _fromAmount);
 
                 // Approve
-                IERC20(_fromToken).safeApprove(_approvalAddress, 0);
-                IERC20(_fromToken).safeApprove(_approvalAddress, _fromAmount);
+                IERC20(_fromToken).forceApprove(_approvalAddress, _fromAmount);
 
                 // LiFi Swap
                 _executeExternalCall(_target, 0, _data);
@@ -294,8 +293,7 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
         IERC20(_toToken).safeTransfer(treasury, feeAmount);
         emit FeeChargedWithReferral(feeReferral, feeAmount);
 
-        IERC20(_toToken).safeApprove(_bridge, 0);
-        IERC20(_toToken).safeApprove(_bridge, swapAmount);
+        IERC20(_toToken).forceApprove(_bridge, swapAmount);
 
         // Get the interchain account address for the contract on the destination chain
         IInterchainAccountRouterWithOverrides ica = IInterchainAccountRouterWithOverrides(interchainAccountRouter);
