@@ -210,6 +210,9 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
 
                 // LiFi Swap
                 _executeExternalCall(_target, 0, _data);
+
+                uint256 remainingBalance = IERC20(_fromToken).balanceOf(address(this));
+                if (remainingBalance > 0) revert SWAP_FAILED();
             }
 
             emit SwapAndBridgeExecuted(_target, _data);
@@ -237,6 +240,28 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
             _params.hookMetadata,
             userSpecificSalt
         );
+    }
+
+    /**
+     * @dev Allows the contract owner to recover ERC20 tokens that were mistakenly sent to this contract.
+     *      Can be used in emergency cases to transfer out stuck tokens.
+     * @param token The address of the ERC20 token to recover.
+     * @param to The address that will receive the recovered tokens.
+     * @param amount The amount of tokens to transfer.
+     */
+    function emergencyTokenRecovery(address token, address to, uint256 amount) external payable onlyOwner {
+        IERC20(token).safeTransfer(to, amount);
+    }
+
+    /**
+     * @dev Allows the contract owner to recover native ETH that was mistakenly sent to this contract.
+     *      Can be used in emergency cases to transfer out stuck ETH.
+     * @param to The address that will receive the recovered ETH.
+     * @param amount The amount of ETH to transfer.
+     */
+    function emergencyETHRecovery(address to, uint256 amount) external payable onlyOwner {
+        (bool success, ) = to.call{value: amount}("");
+        require(success, "ETH transfer failed");
     }
 
     /**
