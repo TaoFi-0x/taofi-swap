@@ -38,6 +38,12 @@ contract SwapAndStake is Ownable {
         bytes32 receiver;
     }
 
+    /// @notice Parameters for UI fees.
+    struct UiFeeParams {
+        address receiver;
+        uint256 feePercentage;
+    }
+
     /**
      * @notice Emitted when a user successfully stakes TAO.
      * @param user The address of the user who initiated the staking.
@@ -45,8 +51,22 @@ contract SwapAndStake is Ownable {
      * @param netuid The network UID of the subnet.
      * @param amount The amount of TAO that was staked.
      */
-    event Stake(address indexed user, bytes32 indexed hotkey, uint256 netuid, uint256 amount);
-    event Unstake(address indexed user, bytes32 indexed hotkey, uint256 netuid, uint256 amount);
+    event Stake(
+        address indexed user,
+        bytes32 indexed hotkey,
+        uint256 netuid,
+        uint256 amount,
+        address feeReceiver,
+        uint256 feeAmount
+    );
+    event Unstake(
+        address indexed user,
+        bytes32 indexed hotkey,
+        uint256 netuid,
+        uint256 amount,
+        address feeReceiver,
+        uint256 feeAmount
+    );
 
     error INVALID_SWAP_TOKENOUT();
     error INVALID_SWAP_TOKENIN();
@@ -55,6 +75,8 @@ contract SwapAndStake is Ownable {
      * @dev Allows the contract to receive the native asset (e.g., ETH or TAO).
      */
     receive() external payable {}
+
+    uint256 public constant PERCENTAGE_FACTOR = 100_00;
 
     /// @notice The address of the USDC token contract.
     address public immutable usdc;
@@ -97,15 +119,18 @@ contract SwapAndStake is Ownable {
     /**
      * @notice Swaps a specified amount of an input token for TAO and stakes it.
      * @dev The caller must have approved this contract to spend their input tokens.
-     *      Note: This function will override swapParams.amountIn to use the user's entire 
+     *      Note: This function will override swapParams.amountIn to use the user's entire
      *      balance of the input token and swapParams.recipient to ensure tokens are received
      *      by this contract for staking.
      * @param swapParams The parameters for the Uniswap V3 swap.
      * @param stakeParams The parameters for staking, including hotkey and netuid.
+     * @param uiFeeParams The parameters for the UI fee.
      */
-    function swapAndStake(IUniswapV3Router.ExactInputSingleParams memory swapParams, StakeParams calldata stakeParams)
-        external
-    {
+    function swapAndStake(
+        IUniswapV3Router.ExactInputSingleParams memory swapParams,
+        StakeParams calldata stakeParams,
+        UiFeeParams calldata uiFeeParams
+    ) external {
         swapParams.amountIn = IERC20(swapParams.tokenIn).balanceOf(address(msg.sender));
         swapParams.recipient = address(this);
 
@@ -121,11 +146,17 @@ contract SwapAndStake is Ownable {
             IWTAO(wtao).withdraw(amountOut);
         }
 
+        uint256 feeAmount = amountOut * uiFeeParams.feePercentage / PERCENTAGE_FACTOR;
+        amountOut -= feeAmount;
+
+        IERC20(wtao).approve(stakingManager, amountOut);
+        IERC20(wtao).transfer(uiFeeParams.receiver, feeAmount);
+
         IStakingManager(stakingManager).stake{value: amountOut}(
             stakeParams.hotkey, stakeParams.netuid, msg.sender, stakeParams.minAlphaToReceive
         );
 
-        emit Stake(msg.sender, stakeParams.hotkey, stakeParams.netuid, amountOut);
+        emit Stake(msg.sender, stakeParams.hotkey, stakeParams.netuid, amountOut, uiFeeParams.receiver, feeAmount);
     }
 
     /**
@@ -139,7 +170,8 @@ contract SwapAndStake is Ownable {
     function unstakeSwapAndBridge(
         UnstakeParams calldata unstakeParams,
         IUniswapV3Router.ExactInputSingleParams memory swapParams,
-        BridgeParams calldata bridgeParams
+        BridgeParams calldata bridgeParams,
+        UiFeeParams calldata uiFeeParams
     ) external payable {
         if (swapParams.tokenIn != wtao) revert INVALID_SWAP_TOKENIN();
         if (swapParams.tokenOut != usdc) revert INVALID_SWAP_TOKENOUT();
@@ -163,6 +195,11 @@ contract SwapAndStake is Ownable {
         // Wrap TAO to WTAO
         IWTAO(wtao).deposit{value: taoReceived}();
 
+        uint256 feeAmount = taoReceived * uiFeeParams.feePercentage / PERCENTAGE_FACTOR;
+        taoReceived -= feeAmount;
+
+        IERC20(wtao).transfer(uiFeeParams.receiver, feeAmount);
+
         // Approve and swap
         IERC20(wtao).approve(uniswapRouter, taoReceived);
 
@@ -177,6 +214,13 @@ contract SwapAndStake is Ownable {
             bridgeParams.destinationChainId, bridgeParams.receiver, amountOut
         );
 
-        emit Unstake(msg.sender, unstakeParams.hotkey, unstakeParams.netuid, unstakeParams.amount);
+        emit Unstake(
+            msg.sender,
+            unstakeParams.hotkey,
+            unstakeParams.netuid,
+            unstakeParams.amount,
+            uiFeeParams.receiver,
+            feeAmount
+        );
     }
 }

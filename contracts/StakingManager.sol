@@ -21,6 +21,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  * It relies on external interfaces for the staking precompile, alpha token, and its factory.
  */
 contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard {
+    uint256 public constant MAX_FEE = 100_00; // 100%
+
     /// @notice The conversion ratio from TAO (in wei) to AlphaToken representation. 1 TAO = 10^9 Alpha.
     uint256 public constant RATIO_TAO_TO_ALPHA = 1e9;
 
@@ -33,6 +35,12 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
     /// @notice The public key associated with this staking manager's coldkey on the Subtensor network.
     bytes32 public pubKey;
 
+    /// @notice The fee for staking.
+    uint256 public stakingFee;
+
+    /// @notice The fee for unstaking.
+    uint256 public unstakingFee;
+
     /// @notice Maps a network UID (netuid) and hotkey to its corresponding AlphaToken contract address.
     mapping(uint256 netuid => mapping(bytes32 hotkey => address alphaToken)) public alphaTokens;
 
@@ -44,16 +52,31 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
     error EtherTransferFailed();
     error InvalidAmount();
     error InsufficientTaoReceived(uint256 received, uint256 minExpected);
+    error InvalidFee();
 
     // --- Events ---
-    event Staked(address indexed user, uint256 indexed netuid, bytes32 hotkey, uint256 taoAmount, uint256 alphaAmount);
+    event Staked(
+        address indexed user,
+        uint256 indexed netuid,
+        bytes32 hotkey,
+        uint256 taoAmount,
+        uint256 feeAmount,
+        uint256 alphaAmount
+    );
     event Unstaked(
-        address indexed user, uint256 indexed netuid, bytes32 hotkey, uint256 alphaAmount, uint256 taoAmount
+        address indexed user,
+        uint256 indexed netuid,
+        bytes32 hotkey,
+        uint256 alphaAmount,
+        uint256 taoAmount,
+        uint256 feeAmount
     );
     event PubKeySet(bytes32 newPubKey);
+    event FeesSet(uint256 stakingFee, uint256 unstakingFee);
     event StakingPrecompileSet(address indexed newStakingPrecompile);
     event AlphaTokenFactorySet(address indexed newFactory);
     event AlphaTokenDeployed(uint256 indexed netuid, address indexed tokenAddress);
+    event FeesClaimed(address indexed receiver, uint256 amount);
 
     /**
      * @dev Allows the contract to receive Ether, primarily from the unstaking process.
@@ -75,6 +98,17 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
     }
 
     /**
+     * @notice Claims accrued fees from the staking manager.
+     * @dev Only callable by the contract owner. Emits a {FeesClaimed} event.
+     * @param receiver The address to send the fees to.
+     */
+    function claimAccruedFees(address receiver) external onlyOwner {
+        uint256 amount = address(this).balance;
+        payable(receiver).transfer(amount);
+        emit FeesClaimed(receiver, amount);
+    }
+
+    /**
      * @notice Sets the public key for staking operations.
      * @dev Only callable by the contract owner. Emits a {PubKeySet} event.
      * @param _pubKey The new public key to use.
@@ -82,6 +116,22 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
     function setPubKey(bytes32 _pubKey) external onlyOwner {
         pubKey = _pubKey;
         emit PubKeySet(_pubKey);
+    }
+
+    /**
+     * @notice Sets the fees for staking and unstaking.
+     * @dev Only callable by the contract owner. Emits a {FeesSet} event.
+     * @param _stakingFee The new staking fee.
+     * @param _unstakingFee The new unstaking fee.
+     */
+    function setFees(uint256 _stakingFee, uint256 _unstakingFee) external onlyOwner {
+        if (stakingFee > MAX_FEE) revert InvalidFee();
+        if (unstakingFee > MAX_FEE) revert InvalidFee();
+
+        stakingFee = _stakingFee;
+        unstakingFee = _unstakingFee;
+
+        emit FeesSet(_stakingFee, _unstakingFee);
     }
 
     /**
@@ -116,8 +166,8 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
      * @param minAlphaToReceive The minimum amount of AlphaTokens the caller is willing to accept.
      */
     function stake(bytes32 hotkey, uint256 netuid, address receiver, uint256 minAlphaToReceive) external payable {
-        uint256 taoAmount = msg.value;
-        if (taoAmount == 0) revert InvalidAmount();
+        uint256 feeAmount = Math.mulDiv(msg.value, stakingFee, MAX_FEE);
+        uint256 taoAmount = msg.value - feeAmount;
 
         if (alphaTokens[netuid][hotkey] == address(0)) {
             _deployNewAlphaToken(netuid, hotkey);
@@ -130,7 +180,7 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
         }
 
         IAlphaToken(alphaTokens[netuid][hotkey]).mint(receiver, alphaReceived);
-        emit Staked(msg.sender, netuid, hotkey, taoAmount, alphaReceived);
+        emit Staked(msg.sender, netuid, hotkey, taoAmount, feeAmount, alphaReceived);
     }
 
     /**
@@ -142,13 +192,10 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
      * @param receiver The address that will receive the unstaked TAO.
      * @param minAmountTaoReceived The minimum amount of TAO expected by the user.
      */
-    function unstake(
-        bytes32 hotkey,
-        uint256 netuid,
-        uint256 amount,
-        address receiver,
-        uint256 minAmountTaoReceived
-    ) external nonReentrant {
+    function unstake(bytes32 hotkey, uint256 netuid, uint256 amount, address receiver, uint256 minAmountTaoReceived)
+        external
+        nonReentrant
+    {
         if (amount == 0) revert InvalidAmount();
 
         // Effect: Burn the tokens first to prevent reentrancy abuse
@@ -156,6 +203,8 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
 
         // Interaction: Call the precompile to remove stake
         uint256 taoReceived = _removeStake(hotkey, netuid, amount);
+        uint256 feeAmount = Math.mulDiv(taoReceived, unstakingFee, MAX_FEE);
+        taoReceived -= feeAmount;
 
         // Slippage protection
         if (taoReceived < minAmountTaoReceived) revert InsufficientTaoReceived(taoReceived, minAmountTaoReceived);
@@ -164,7 +213,7 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
         (bool success,) = receiver.call{value: taoReceived}("");
         if (!success) revert EtherTransferFailed();
 
-        emit Unstaked(msg.sender, netuid, hotkey, amount, taoReceived);
+        emit Unstaked(msg.sender, netuid, hotkey, amount, taoReceived, feeAmount);
     }
 
     /**
@@ -231,7 +280,13 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
         return taoBalanceAfter - taoBalanceBefore;
     }
 
-    function _getStake(uint256 netuid, bytes32 hotkey) internal view returns (uint256) {
+    /**
+     * @dev Internal function to get the stake of a hotkey.
+     * @param netuid The network UID of the subnet.
+     * @param hotkey The hotkey of the validator/miner to get the stake of.
+     * @return amount The amount of stake in TAO.
+     */
+    function _getStake(uint256 netuid, bytes32 hotkey) internal view returns (uint256 amount) {
         return IStakingV2(stakingPrecompile).getStake(hotkey, pubKey, netuid);
     }
 }

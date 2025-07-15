@@ -46,28 +46,23 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
     uint256 private constant PERCENTAGE_FACTOR = 100_00;
     uint32 private constant DESTINATION_CHAIN_ID = 964;
 
-    uint256 public fee;
     address public bridgeToken;
     address public bridge;
     address public interchainAccountRouter;
     address public treasury;
 
     mapping(address => bool) public isTargetAddressBlacklisted;
-    
+
     // to => selector => allowed
     mapping(bytes32 => mapping(bytes4 => bool)) public allowedRemoteCalls;
 
-    event FeeUpdated(uint256 newFee);
     event BridgeTokenUpdated(address newBridgeToken);
     event BridgeUpdated(address newBridge);
     event InterchainAccountRouterUpdated(address newInterchainAccountRouter);
     event SwapAndBridgeExecuted(address indexed target, bytes data);
-    event FeeChargedWithReferral(bytes tag, uint256 feeAmount);
-    event TreasuryUpdated(address newTreasury);
     event TargetAddressBlacklisted(address indexed target);
     event AllowedRemoteCallUpdated(bytes32 indexed target, bytes4 indexed selector, bool allowed);
 
-    error INVALID_FEE_VALUE();
     error INVALID_ADDRESS();
     error INVALID_VALUE();
     error NOT_CONTRACT();
@@ -81,18 +76,6 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
         __Ownable_init();
         __ReentrancyGuard_init();
         _disableInitializers();
-    }
-
-    /**
-     * @dev Set the fee of the swap and bridge.
-     * @param _fee - The fee percentage value. 1% = 100
-     */
-    function setFee(uint256 _fee) external payable onlyOwner {
-        if (_fee > PERCENTAGE_FACTOR) revert INVALID_FEE_VALUE();
-
-        fee = _fee;
-
-        emit FeeUpdated(_fee);
     }
 
     /**
@@ -126,16 +109,6 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
         interchainAccountRouter = _interchainAccountRouter;
 
         emit InterchainAccountRouterUpdated(_interchainAccountRouter);
-    }
-
-    /**
-     * @dev Set the treasury address.
-     * @param _treasury - The address of the treasury.
-     */
-    function setTreasury(address _treasury) external payable onlyOwner {
-        treasury = _treasury;
-
-        emit TreasuryUpdated(_treasury);
     }
 
     /**
@@ -259,7 +232,7 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
      * @param amount The amount of ETH to transfer.
      */
     function emergencyETHRecovery(address to, uint256 amount) external payable onlyOwner {
-        (bool success, ) = to.call{value: amount}("");
+        (bool success,) = to.call{value: amount}("");
         require(success, "ETH transfer failed");
     }
 
@@ -277,7 +250,7 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
 
     function _bridgeAndCall(
         RemoteCallsParams calldata _params,
-        uint256 valueSpent, 
+        uint256 valueSpent,
         uint256 _bridgeCost,
         bytes calldata feeReferral
     ) internal {
@@ -287,11 +260,7 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
         if (toAmount == 0) revert SWAP_FAILED();
 
         // fee processing
-        uint256 swapAmount = (toAmount * (PERCENTAGE_FACTOR - fee)) / PERCENTAGE_FACTOR;
-        uint256 feeAmount = toAmount - swapAmount;
-
-        IERC20(_toToken).safeTransfer(treasury, feeAmount);
-        emit FeeChargedWithReferral(feeReferral, feeAmount);
+        uint256 swapAmount = toAmount;
 
         IERC20(_toToken).forceApprove(_bridge, swapAmount);
 
