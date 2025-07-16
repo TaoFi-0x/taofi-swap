@@ -1,4 +1,4 @@
-import { artifacts, deployments, ethers, upgrades } from "hardhat";
+import { artifacts, deployments, ethers } from "hardhat";
 import { DeployFunction } from "hardhat-deploy/types";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 const { execute, get, save } = deployments;
@@ -18,7 +18,7 @@ const deployAlphaTokenImplementation = async () => {
 
   const { abi: alphaTokenAbi } = await artifacts.readArtifact("AlphaToken");
 
-  save("AlphaTokenImplementation", {
+  await save("AlphaTokenImplementation", {
     abi: alphaTokenAbi,
     address: alphaTokenImplementation.address,
   });
@@ -45,7 +45,7 @@ const deployAlphaTokenFactory = async () => {
     "AlphaTokenFactory"
   );
 
-  save("AlphaTokenFactory", {
+  await save("AlphaTokenFactory", {
     abi: alphaTokenFactoryAbi,
     address: alphaTokenFactory.address,
   });
@@ -61,19 +61,20 @@ const deployStakingManager = async () => {
   const StakingManagerFactory = await ethers.getContractFactory(
     "StakingManager"
   );
-  const stakingManager = await upgrades.deployProxy(
-    StakingManagerFactory,
-    [STAKING_PRECOMPILE_ADDRESS, alphaTokenFactoryAddress],
-    {
-      initializer: "initialize",
-    }
-  );
+  const stakingManager = await StakingManagerFactory.deploy();
   await stakingManager.deployed();
+
+  // Initialize the contract
+  await stakingManager.initialize(
+    STAKING_PRECOMPILE_ADDRESS,
+    alphaTokenFactoryAddress
+  );
+  console.log("StakingManager initialized");
 
   const { abi: stakingManagerAbi } = await artifacts.readArtifact(
     "StakingManager"
   );
-  save("StakingManager", {
+  await save("StakingManager", {
     abi: stakingManagerAbi,
     address: stakingManager.address,
   });
@@ -100,7 +101,7 @@ const deploySwapAndStake = async () => {
 
   const { abi: swapAndStakeAbi } = await artifacts.readArtifact("SwapAndStake");
 
-  save("SwapAndStake", {
+  await save("SwapAndStake", {
     abi: swapAndStakeAbi,
     address: swapAndStake.address,
   });
@@ -110,10 +111,8 @@ const deploySwapAndStake = async () => {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
-  console.log(`Deploying STAO to ${hre.network.name}. Hit ctrl + c to abort`);
-
-  await deployAlphaTokenImplementation();
-  await deployAlphaTokenFactory();
+  // await deployAlphaTokenImplementation();
+  // await deployAlphaTokenFactory();
   await deployStakingManager();
   await deploySwapAndStake();
 

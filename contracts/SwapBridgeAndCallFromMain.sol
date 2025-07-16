@@ -254,30 +254,28 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
         uint256 _bridgeCost,
         bytes calldata feeReferral
     ) internal {
-        address _toToken = bridgeToken;
-        address _bridge = bridge;
-        uint256 toAmount = IERC20(_toToken).balanceOf(address(this));
+        uint256 toAmount = IERC20(bridgeToken).balanceOf(address(this));
         if (toAmount == 0) revert SWAP_FAILED();
 
         // fee processing
-        uint256 swapAmount = toAmount;
 
-        IERC20(_toToken).forceApprove(_bridge, swapAmount);
+        IERC20(bridgeToken).forceApprove(bridge, toAmount);
 
         // Get the interchain account address for the contract on the destination chain
-        IInterchainAccountRouterWithOverrides ica = IInterchainAccountRouterWithOverrides(interchainAccountRouter);
         bytes32 userSpecificSalt = bytes32(uint256(uint160(msg.sender)));
 
         // Avoid stack too deep
         {
+            IInterchainAccountRouterWithOverrides ica = IInterchainAccountRouterWithOverrides(interchainAccountRouter);
+
             address routerAddress = address(uint160(uint256(_params.router)));
             address ismAddress = address(uint160(uint256(_params.ism)));
             address userIcaOnDestination =
                 ica.getRemoteInterchainAccount(address(this), routerAddress, ismAddress, userSpecificSalt);
 
             // Bridge
-            IBridge(_bridge).transferRemote{value: _bridgeCost}(
-                DESTINATION_CHAIN_ID, bytes32(uint256(uint160(userIcaOnDestination))), swapAmount
+            IBridge(bridge).transferRemote{value: _bridgeCost}(
+                DESTINATION_CHAIN_ID, bytes32(uint256(uint160(userIcaOnDestination))), toAmount
             );
         }
 
