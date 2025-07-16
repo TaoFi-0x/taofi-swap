@@ -14,6 +14,7 @@ import "hardhat-gas-reporter";
 import "hardhat-preprocessor";
 import "solidity-coverage";
 
+import "@openzeppelin/hardhat-upgrades";
 import "./hardhat/tasks";
 
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "";
