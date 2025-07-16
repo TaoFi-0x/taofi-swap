@@ -141,16 +141,15 @@ contract SwapAndStake is Ownable {
         IERC20(swapParams.tokenIn).approve(uniswapRouter, swapParams.amountIn);
         uint256 amountOut = IUniswapV3Router(uniswapRouter).exactInputSingle(swapParams);
 
+        uint256 feeAmount = amountOut * uiFeeParams.feePercentage / PERCENTAGE_FACTOR;
+        amountOut -= feeAmount;
+
+        IERC20(wtao).transfer(uiFeeParams.receiver, feeAmount);
+
         // If asset out is WTAO, unwrap it
         if (swapParams.tokenOut == wtao) {
             IWTAO(wtao).withdraw(amountOut);
         }
-
-        uint256 feeAmount = amountOut * uiFeeParams.feePercentage / PERCENTAGE_FACTOR;
-        amountOut -= feeAmount;
-
-        IERC20(wtao).approve(stakingManager, amountOut);
-        IERC20(wtao).transfer(uiFeeParams.receiver, feeAmount);
 
         IStakingManager(stakingManager).stake{value: amountOut}(
             stakeParams.hotkey, stakeParams.netuid, msg.sender, stakeParams.minAlphaToReceive
