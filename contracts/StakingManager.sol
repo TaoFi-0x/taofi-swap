@@ -240,8 +240,8 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
         uint256 totalSharesBefore = alphaToken.totalSupply();
 
         // The amount is sent via msg.value to this contract, then forwarded here.
-        (bool success,) = stakingPrecompile.call{value: taoAmount}(
-            abi.encodeWithSelector(IStakingV2.addStake.selector, hotkey, taoAmount, netuid)
+        (bool success,) = stakingPrecompile.call(
+            abi.encodeWithSelector(IStakingV2.addStake.selector, hotkey, taoAmount / RATIO_TAO_TO_ALPHA, netuid)
         );
 
         if (!success) {
