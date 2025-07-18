@@ -34,6 +34,7 @@ contract SwapAndStake is Ownable {
 
     /// @notice Parameters for bridging assets to another chain.
     struct BridgeParams {
+        uint256 bridgeFee;
         uint32 destinationChainId;
         bytes32 receiver;
     }
@@ -192,7 +193,7 @@ contract SwapAndStake is Ownable {
         uint256 taoReceived = taoBalanceAfter - taoBalanceBefore;
 
         // Wrap TAO to WTAO
-        IWTAO(wtao).deposit{value: taoReceived}();
+        IWTAO(wtao).deposit{value: taoReceived - bridgeParams.bridgeFee}();
 
         uint256 feeAmount = taoReceived * uiFeeParams.feePercentage / PERCENTAGE_FACTOR;
         taoReceived -= feeAmount;
@@ -209,7 +210,7 @@ contract SwapAndStake is Ownable {
 
         IERC20(usdc).approve(bridge, amountOut);
 
-        IBridge(bridge).transferRemote{value: msg.value}(
+        IBridge(bridge).transferRemote{value: bridgeParams.bridgeFee}(
             bridgeParams.destinationChainId, bridgeParams.receiver, amountOut
         );
 
