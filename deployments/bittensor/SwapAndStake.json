@@ -1,5 +1,5 @@
 {
-  "address": "0xd110F446897b486E7ed57EF6A5701d9a87F5629b",
+  "address": "0x3B18d4CB8D2139Cf102823a363794576B72FD0e9",
   "abi": [
     {
       "inputs": [
@@ -418,6 +418,11 @@
         {
           "components": [
             {
+              "internalType": "uint256",
+              "name": "bridgeFee",
+              "type": "uint256"
+            },
+            {
               "internalType": "uint32",
               "name": "destinationChainId",
               "type": "uint32"
@@ -486,5 +491,5 @@
       "type": "receive"
     }
   ],
-  "numDeployments": 2
+  "numDeployments": 3
 }
