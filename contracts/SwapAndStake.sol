@@ -241,12 +241,12 @@ contract SwapAndStake is Ownable {
      * @param amount Total USDC amount being refunded by the caller (portion goes to swap, rest is bridged).
      */
     function refund(
-        IUniswapV3Router.ExactOutputSingleParams memory swapParams,
+        IUniswapV3Router.ExactOutputSingleParams calldata swapParams,
         BridgeParams calldata bridgeParams,
         uint256 amount
     ) external payable {
-        if (swapParams.tokenIn != wtao) revert INVALID_SWAP_TOKENIN();
-        if (swapParams.tokenOut != usdc) revert INVALID_SWAP_TOKENOUT();
+        if (swapParams.tokenIn != usdc) revert INVALID_SWAP_TOKENIN();
+        if (swapParams.tokenOut != wtao) revert INVALID_SWAP_TOKENOUT();
         if (bridgeParams.bridgeFee != swapParams.amountOut) revert INVALID_SWAP_AMOUNT();
 
         IERC20(usdc).transferFrom(msg.sender, address(this), amount);
