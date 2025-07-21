@@ -140,13 +140,11 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
      * @param _swapParams The parameters for the swap. Including the from token, from amount, approval address, target and data.
      * @param _params The parameters for the remote call.
      * @param _bridgeCost The cost of the bridge.
-     * @param _feeReferral The referral fee.
      */
     function lifiSwapBridgeAndCall(
         SwapParams calldata _swapParams,
         RemoteCallsParams calldata _params,
-        uint256 _bridgeCost,
-        bytes calldata _feeReferral
+        uint256 _bridgeCost
     ) external payable nonReentrant {
         address _fromToken = _swapParams.fromToken;
         uint256 _fromAmount = _swapParams.fromAmount;
@@ -190,7 +188,7 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
             emit SwapAndBridgeExecuted(_target, _data);
         }
 
-        _bridgeAndCall(_params, valueSpent, _bridgeCost, _feeReferral);
+        _bridgeAndCall(_params, valueSpent, _bridgeCost);
     }
 
     /**
@@ -251,8 +249,7 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
     function _bridgeAndCall(
         RemoteCallsParams calldata _params,
         uint256 valueSpent,
-        uint256 _bridgeCost,
-        bytes calldata feeReferral
+        uint256 _bridgeCost
     ) internal {
         uint256 toAmount = IERC20(bridgeToken).balanceOf(address(this));
         if (toAmount == 0) revert SWAP_FAILED();

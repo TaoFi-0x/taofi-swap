@@ -68,9 +68,16 @@ contract SwapAndStake is Ownable {
         address feeReceiver,
         uint256 feeAmount
     );
+    event Refund(
+        address indexed user,
+        address indexed receiver,
+        uint256 amount,
+        uint256 bridgeFee
+    );
 
     error INVALID_SWAP_TOKENOUT();
     error INVALID_SWAP_TOKENIN();
+    error INVALID_SWAP_AMOUNT();
 
     /**
      * @dev Allows the contract to receive the native asset (e.g., ETH or TAO).
@@ -166,6 +173,7 @@ contract SwapAndStake is Ownable {
      * @param unstakeParams The parameters for unstaking from the subnet.
      * @param swapParams The parameters for the Uniswap V3 swap (WTAO to USDC).
      * @param bridgeParams The parameters for the cross-chain bridge transfer.
+     * @param uiFeeParams Parameters for calculating and forwarding the UI fee.
      */
     function unstakeSwapAndBridge(
         UnstakeParams calldata unstakeParams,
@@ -197,6 +205,7 @@ contract SwapAndStake is Ownable {
 
         uint256 feeAmount = taoReceived * uiFeeParams.feePercentage / PERCENTAGE_FACTOR;
         taoReceived -= feeAmount;
+        taoReceived -= bridgeParams.bridgeFee;
 
         IERC20(wtao).transfer(uiFeeParams.receiver, feeAmount);
 
@@ -221,6 +230,44 @@ contract SwapAndStake is Ownable {
             unstakeParams.amount,
             uiFeeParams.receiver,
             feeAmount
+        );
+    }
+
+    /**
+     * @notice Allows refunding users sending native USDC to a receiver on a remote chain.
+     * @dev Requires prior approval of USDC by the user. The bridge fee is enforced to match the output amount from Uniswap.
+     * @param swapParams Uniswap V3 exact output parameters to swap USDC to WTAO (covering the bridge fee).
+     * @param bridgeParams Parameters for cross-chain transfer, including receiver, destination chain ID, and bridge fee.
+     * @param amount Total USDC amount being refunded by the caller (portion goes to swap, rest is bridged).
+     */
+    function refund(
+        IUniswapV3Router.ExactOutputSingleParams memory swapParams,
+        BridgeParams calldata bridgeParams,
+        uint256 amount
+    ) external payable {
+        if (swapParams.tokenIn != wtao) revert INVALID_SWAP_TOKENIN();
+        if (swapParams.tokenOut != usdc) revert INVALID_SWAP_TOKENOUT();
+        if (bridgeParams.bridgeFee != swapParams.amountOut) revert INVALID_SWAP_AMOUNT();
+
+        IERC20(usdc).transferFrom(msg.sender, address(this), amount);
+
+        // Approve and swap
+        IERC20(usdc).approve(uniswapRouter, swapParams.amountInMaximum);
+        // Swap USDC to WTAO
+        uint256 amountIn = IUniswapV3Router(uniswapRouter).exactOutputSingle(swapParams);
+
+        // Unwrap WTAO to TAO
+        IWTAO(wtao).withdraw(bridgeParams.bridgeFee);
+
+        IBridge(bridge).transferRemote{value: bridgeParams.bridgeFee}(
+            bridgeParams.destinationChainId, bridgeParams.receiver, amount - amountIn
+        );
+
+        emit Refund(
+            msg.sender,
+            address(uint160(uint256(bridgeParams.receiver))),
+            amount,
+            bridgeParams.bridgeFee
         );
     }
 }
