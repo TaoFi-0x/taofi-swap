@@ -180,7 +180,7 @@ contract SwapAndStake is Ownable {
         IUniswapV3Router.ExactInputSingleParams memory swapParams,
         BridgeParams calldata bridgeParams,
         UiFeeParams calldata uiFeeParams
-    ) external payable {
+    ) external {
         if (swapParams.tokenIn != wtao) revert INVALID_SWAP_TOKENIN();
         if (swapParams.tokenOut != usdc) revert INVALID_SWAP_TOKENOUT();
 
@@ -244,7 +244,7 @@ contract SwapAndStake is Ownable {
         IUniswapV3Router.ExactOutputSingleParams calldata swapParams,
         BridgeParams calldata bridgeParams,
         uint256 amount
-    ) external payable {
+    ) external {
         if (swapParams.tokenIn != usdc) revert INVALID_SWAP_TOKENIN();
         if (swapParams.tokenOut != wtao) revert INVALID_SWAP_TOKENOUT();
         if (bridgeParams.bridgeFee != swapParams.amountOut) revert INVALID_SWAP_AMOUNT();
