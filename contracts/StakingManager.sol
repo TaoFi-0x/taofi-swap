@@ -200,9 +200,6 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
     {
         if (amount == 0) revert InvalidAmount();
 
-        // Effect: Burn the tokens first to prevent reentrancy abuse
-        IAlphaToken(alphaTokens[netuid][hotkey]).burn(msg.sender, amount);
-
         // Interaction: Call the precompile to remove stake
         uint256 taoReceived = _removeStake(hotkey, netuid, amount);
         uint256 feeAmount = Math.mulDiv(taoReceived, unstakingFee, MAX_FEE);
@@ -210,6 +207,9 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
 
         // Slippage protection
         if (taoReceived < minAmountTaoReceived) revert InsufficientTaoReceived(taoReceived, minAmountTaoReceived);
+
+        // Effect: Burn the tokens first to prevent reentrancy abuse
+        IAlphaToken(alphaTokens[netuid][hotkey]).burn(msg.sender, amount);
 
         // Interaction: Send TAO safely to the receiver
         (bool success,) = receiver.call{value: taoReceived}("");
