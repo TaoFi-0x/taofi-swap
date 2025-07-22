@@ -55,6 +55,8 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
     error InvalidFee();
 
     // --- Events ---
+    event StakeAdded(uint256 indexed netuid, bytes32 indexed hotkey, uint256 alphaReceived, uint256 sharesToMint);
+    event StakeRemoved(uint256 indexed netuid, bytes32 indexed hotkey, uint256 alphaToUnstake, uint256 amount);
     event Staked(
         address indexed user,
         uint256 indexed netuid,
@@ -252,6 +254,8 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
         uint256 alphaReceived = alphaBalanceAfter - alphaBalanceBefore;
 
         uint256 sharesToMint = Math.mulDiv(alphaReceived, totalSharesBefore + 1, alphaBalanceBefore + 1);
+
+        emit StakeAdded(netuid, hotkey, alphaReceived, sharesToMint);
         return sharesToMint;
     }
 
@@ -277,6 +281,8 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
         }
 
         uint256 taoBalanceAfter = address(this).balance;
+
+        emit StakeRemoved(netuid, hotkey, alphaToUnstake, amount);
         return taoBalanceAfter - taoBalanceBefore;
     }
 
