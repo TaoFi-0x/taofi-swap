@@ -4,14 +4,14 @@ import { SimpleTx } from 'hardhat-deploy/types';
 import { impersonateAccountsHardhat } from '../helpers/misc-utils';
 import { parseEther } from 'ethers/lib/utils';
 
-const callURL = "https://taofi-api.web.app/getBuyCall";
-const call2URL = "https://taofi-api.web.app/getBuyCall2";
+const callURL = "https://taofi-api.web.app/getBuyCall_Deprecated";
+const call2URL = "https://taofi-api.web.app/getBuyCall";
 const quoteURL = "https://taofi-api.web.app/getBuyQuote";
-const reverseCallURL = "https://taofi-api.web.app/getSellCall";
-const reverseCall2URL = "https://taofi-api.web.app/getSellCall2";
+const reverseCallURL = "https://taofi-api.web.app/getSellCall_Deprecated";
+const reverseCall2URL = "https://taofi-api.web.app/getSellCall";
 const reverseQuoteURL = "https://taofi-api.web.app/getSellQuote";
-const refundCallURL = "https://taofi-api.web.app/getRefundCall";
-const refundCall2URL = "https://taofi-api.web.app/getRefundCall2";
+const refundCallURL = "https://taofi-api.web.app/getRefundCall_Deprecated";
+const refundCall2URL = "https://taofi-api.web.app/getRefundCall";
 
 // describe('SwapAndBridgeAndCall', () => {
 //   it('Swap, Bridge, Stake', async () => {
