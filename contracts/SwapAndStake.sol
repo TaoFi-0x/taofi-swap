@@ -9,6 +9,7 @@ import {IStakingManager} from "./interfaces/IStakingManager.sol";
 import {IStakingV2} from "./interfaces/IStakingV2.sol";
 import {IBridge} from "./interfaces/IBridge.sol";
 import {IWTAO} from "./interfaces/IWTAO.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title SwapAndStake
@@ -139,7 +140,7 @@ contract SwapAndStake is Ownable {
         StakeParams calldata stakeParams,
         UiFeeParams calldata uiFeeParams
     ) external {
-        swapParams.amountIn = IERC20(swapParams.tokenIn).balanceOf(address(msg.sender));
+        swapParams.amountIn = Math.min(swapParams.amountIn, IERC20(swapParams.tokenIn).balanceOf(address(msg.sender)));
         swapParams.recipient = address(this);
 
         // Take USDC

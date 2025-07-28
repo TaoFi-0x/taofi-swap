@@ -74,7 +74,7 @@ const refundCall2URL = "https://taofi-api.web.app/getRefundCall";
 //     const { rawTx } = deployments;
 //     const fromTokenAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";  //USDC (base)
 //     const fromDecimals = 6; // USDC decimals
-//     const fromAmount = "1000000"  // 1 USDC
+//     const fromAmount = "300000000"  // 300 USDC
 
 //     let response = await axios.post(
 //       quoteURL, 
@@ -173,7 +173,7 @@ const refundCall2URL = "https://taofi-api.web.app/getRefundCall";
 //       reverseQuoteURL, 
 //       {
 //         subnetuid: 10, 
-//         fromAmount: "200000000", // 0.2 SN10
+//         fromAmount: "58000000000", // 58 SN10
 //       }
 //     );
 //     console.log("Response data:", response.data);
@@ -187,9 +187,9 @@ const refundCall2URL = "https://taofi-api.web.app/getRefundCall";
 //           netuid: 10,
 //           hotkey: "0xacf34e305f1474e4817a66352af736fe6b0bcf5cdfeef18c441e24645c742339"
 //         },
-//         fromAmount: "200000000", // 0.2 SN10
+//         fromAmount: "58000000000", // 58 SN10
 //         expectedToAmount: response.data.expectedToAmount,
-//         slippage: 1000,  // 10%
+//         slippage: 90,  // 0.9%
 //         referralId: deployer
 //       }
 //     );
