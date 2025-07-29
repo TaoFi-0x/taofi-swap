@@ -41,6 +41,9 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
     /// @notice The fee for unstaking.
     uint256 public unstakingFee;
 
+    /// @notice The minimum transaction size for staking.
+    uint256 public minTxSize;
+
     /// @notice Maps a network UID (netuid) and hotkey to its corresponding AlphaToken contract address.
     mapping(uint256 netuid => mapping(bytes32 hotkey => address alphaToken)) public alphaTokens;
 
@@ -53,6 +56,7 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
     error InvalidAmount();
     error InsufficientTaoReceived(uint256 received, uint256 minExpected);
     error InvalidFee();
+    error TxTooSmall();
 
     // --- Events ---
     event StakeAdded(uint256 indexed netuid, bytes32 indexed hotkey, uint256 alphaReceived, uint256 sharesToMint);
@@ -79,11 +83,16 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
     event AlphaTokenFactorySet(address indexed newFactory);
     event AlphaTokenDeployed(uint256 indexed netuid, address indexed tokenAddress);
     event FeesClaimed(address indexed receiver, uint256 amount);
+    event MinTxSizeSet(uint256 minTxSize);
 
     /**
      * @dev Allows the contract to receive Ether, primarily from the unstaking process.
      */
     receive() external payable {}
+
+    constructor() {
+        _disableInitializers();
+    }
 
     /**
      * @notice Sets up the StakingManager contract.
@@ -159,6 +168,16 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
     }
 
     /**
+     * @notice Sets the minimum transaction size for staking.
+     * @dev Only callable by the contract owner. Emits an {MinTxSizeSet} event.
+     * @param _minTxSize The new minimum transaction size.
+     */
+    function setMinTxSize(uint256 _minTxSize) external onlyOwner {
+        minTxSize = _minTxSize;
+        emit MinTxSizeSet(_minTxSize);
+    }
+
+    /**
      * @notice Stakes TAO for a user and mints AlphaTokens in return.
      * @dev The amount of TAO to stake is determined by `msg.value`. The function will revert
      * if the amount sent is not a multiple of the ratio denominator.
@@ -170,6 +189,8 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
     function stake(bytes32 hotkey, uint256 netuid, address receiver, uint256 minAlphaToReceive) external payable {
         uint256 feeAmount = Math.mulDiv(msg.value, stakingFee, MAX_FEE);
         uint256 taoAmount = msg.value - feeAmount;
+
+        if (taoAmount < minTxSize) revert TxTooSmall();
 
         if (alphaTokens[netuid][hotkey] == address(0)) {
             _deployNewAlphaToken(netuid, hotkey);
@@ -205,6 +226,8 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
         uint256 feeAmount = Math.mulDiv(taoReceived, unstakingFee, MAX_FEE);
         taoReceived -= feeAmount;
 
+        if (taoReceived < minTxSize) revert TxTooSmall();
+
         // Slippage protection
         if (taoReceived < minAmountTaoReceived) revert InsufficientTaoReceived(taoReceived, minAmountTaoReceived);
 
@@ -224,7 +247,7 @@ contract StakingManager is IStakingManager, OwnableUpgradeable, ReentrancyGuard 
      * @return The address of the newly deployed token contract.
      */
     function _deployNewAlphaToken(uint256 netuid, bytes32 hotkey) internal returns (address) {
-        string memory name = string(abi.encodePacked("SN", Strings.toString(netuid), "-", hotkey));
+        string memory name = string(abi.encodePacked("SN-", Strings.toString(netuid)));
         address alphaToken = IAlphaTokenFactory(alphaTokenFactory).deployNewAlphaToken(name, name, netuid, hotkey);
         alphaTokens[netuid][hotkey] = alphaToken;
 
