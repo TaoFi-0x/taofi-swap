@@ -51,7 +51,7 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
     address public interchainAccountRouter;
     address public treasury;
 
-    mapping(address => bool) public isTargetAddressBlacklisted;
+    mapping(address => bool) public isTargetAddressWhitelisted;
 
     // to => selector => allowed
     mapping(bytes32 => mapping(bytes4 => bool)) public allowedRemoteCalls;
@@ -60,7 +60,7 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
     event BridgeUpdated(address newBridge);
     event InterchainAccountRouterUpdated(address newInterchainAccountRouter);
     event SwapAndBridgeExecuted(address indexed target, bytes data);
-    event TargetAddressBlacklisted(address indexed target);
+    event TargetAddressWhitelisted(address indexed target);
     event AllowedRemoteCallUpdated(bytes32 indexed target, bytes4 indexed selector, bool allowed);
 
     error INVALID_ADDRESS();
@@ -114,12 +114,12 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
     /**
      * @dev Set the target address to be blacklisted.
      * @param _target - The address of the target.
-     * @param _isBlacklisted - The boolean value to determine if the target is blacklisted.
+     * @param _isWhitelisted - The boolean value to determine if the target is blacklisted.
      */
-    function setTargetAddressBlacklisted(address _target, bool _isBlacklisted) external payable onlyOwner {
-        isTargetAddressBlacklisted[_target] = _isBlacklisted;
+    function setTargetAddressWhitelisted(address _target, bool _isWhitelisted) external payable onlyOwner {
+        isTargetAddressWhitelisted[_target] = _isWhitelisted;
 
-        emit TargetAddressBlacklisted(_target);
+        emit TargetAddressWhitelisted(_target);
     }
 
     /**
@@ -246,11 +246,7 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
         return allowedRemoteCalls[_call.to][bytes4(_call.data)];
     }
 
-    function _bridgeAndCall(
-        RemoteCallsParams calldata _params,
-        uint256 valueSpent,
-        uint256 _bridgeCost
-    ) internal {
+    function _bridgeAndCall(RemoteCallsParams calldata _params, uint256 valueSpent, uint256 _bridgeCost) internal {
         uint256 toAmount = IERC20(bridgeToken).balanceOf(address(this));
         if (toAmount == 0) revert SWAP_FAILED();
 
@@ -290,7 +286,7 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
     }
 
     function _executeExternalCall(address target, uint256 value, bytes calldata data) internal {
-        if (isTargetAddressBlacklisted[target]) {
+        if (!isTargetAddressWhitelisted[target]) {
             revert INVALID_TARGET();
         }
 
