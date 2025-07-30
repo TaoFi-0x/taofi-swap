@@ -1,6 +1,11 @@
 {
-  "address": "0x71b27B40cd46E19fe5E740C423a6A003C26731b2",
+  "address": "0x01D9f791F6ce6081f12e31C6dBEBb16daEB02198",
   "abi": [
+    {
+      "inputs": [],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
     {
       "anonymous": false,
       "inputs": [
@@ -515,5 +520,5 @@
       "type": "function"
     }
   ],
-  "numDeployments": 1
+  "numDeployments": 2
 }

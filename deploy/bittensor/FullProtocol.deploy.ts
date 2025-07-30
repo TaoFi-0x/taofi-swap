@@ -3,6 +3,7 @@ import { DeployFunction } from "hardhat-deploy/types";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 const { execute, get, save } = deployments;
 
+
 const STAKING_PRECOMPILE_ADDRESS = "0x0000000000000000000000000000000000000805";
 const USDC = "0xB833E8137FEDf80de7E908dc6fea43a029142F20";
 const WTAO = "0x9Dc08C6e2BF0F1eeD1E00670f80Df39145529F81";
@@ -61,14 +62,25 @@ const deployStakingManager = async () => {
   const StakingManagerFactory = await ethers.getContractFactory(
     "StakingManager"
   );
-  const stakingManager = await StakingManagerFactory.deploy();
-  await stakingManager.deployed();
+  const stakingManagerImplementation = await StakingManagerFactory.deploy();
+  await stakingManagerImplementation.deployed();
 
-  // Initialize the contract
-  await stakingManager.initialize(
-    STAKING_PRECOMPILE_ADDRESS,
-    alphaTokenFactoryAddress
+
+  const StakingManagerProxyFactory = await ethers.getContractFactory(
+    "StakingManagerProxy"
   );
+
+  const initializeFunctionCall = StakingManagerFactory.interface.encodeFunctionData(
+    "initialize",
+    [STAKING_PRECOMPILE_ADDRESS, alphaTokenFactoryAddress]
+  );
+
+  const stakingManagerProxy = await StakingManagerProxyFactory.deploy(
+    stakingManagerImplementation.address,
+    "0xA3c92e5cbb6146384Aa5A41540EC3fc6a184139C",
+    initializeFunctionCall
+  );
+
   console.log("StakingManager initialized");
 
   const { abi: stakingManagerAbi } = await artifacts.readArtifact(
@@ -76,10 +88,10 @@ const deployStakingManager = async () => {
   );
   await save("StakingManager", {
     abi: stakingManagerAbi,
-    address: stakingManager.address,
+    address: stakingManagerProxy.address,
   });
 
-  console.log(`StakingManager deployed to ${stakingManager.address}`);
+  console.log(`StakingManager deployed to ${stakingManagerProxy.address}`);
 };
 
 const deploySwapAndStake = async () => {
@@ -111,8 +123,8 @@ const deploySwapAndStake = async () => {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
-  // await deployAlphaTokenImplementation();
-  // await deployAlphaTokenFactory();
+  await deployAlphaTokenImplementation();
+  await deployAlphaTokenFactory();
   await deployStakingManager();
   await deploySwapAndStake();
 

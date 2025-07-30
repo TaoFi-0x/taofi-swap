@@ -1,6 +1,11 @@
 {
-  "address": "0xBB4b56659031aFEf786f05002637C1Ce27ecF37d",
+  "address": "0x4e269498C284897273c9f75443e61CC4Eb6f68d1",
   "abi": [
+    {
+      "inputs": [],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
     {
       "inputs": [],
       "name": "AddStakeFailed",
@@ -50,6 +55,11 @@
     {
       "inputs": [],
       "name": "TransferStakeFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TxTooSmall",
       "type": "error"
     },
     {
@@ -133,6 +143,19 @@
         }
       ],
       "name": "Initialized",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "minTxSize",
+          "type": "uint256"
+        }
+      ],
+      "name": "MinTxSizeSet",
       "type": "event"
     },
     {
@@ -424,6 +447,19 @@
     },
     {
       "inputs": [],
+      "name": "minTxSize",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "owner",
       "outputs": [
         {
@@ -482,6 +518,19 @@
         }
       ],
       "name": "setFees",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_minTxSize",
+          "type": "uint256"
+        }
+      ],
+      "name": "setMinTxSize",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -630,5 +679,5 @@
       "type": "receive"
     }
   ],
-  "numDeployments": 5
+  "numDeployments": 6
 }
