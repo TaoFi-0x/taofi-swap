@@ -72,10 +72,13 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
     error INVALID_TARGET();
     error UNAUTHORIZED_CALL_TYPE();
 
+    constructor() {
+        _disableInitializers();
+    }
+
     function initialize() external initializer {
         __Ownable_init();
         __ReentrancyGuard_init();
-        _disableInitializers();
     }
 
     /**
