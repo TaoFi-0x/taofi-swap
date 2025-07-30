@@ -12,6 +12,7 @@ const reverseCall2URL = "https://taofi-api.web.app/getSellCall";
 const reverseQuoteURL = "https://taofi-api.web.app/getSellQuote";
 const refundCallURL = "https://taofi-api.web.app/getRefundCall_Deprecated";
 const refundCall2URL = "https://taofi-api.web.app/getRefundCall";
+const TransferCallURL = "https://taofi-api.web.app/getTransferCall";
 
 // describe('SwapAndBridgeAndCall', () => {
 //   it('Swap, Bridge, Stake', async () => {
@@ -256,3 +257,26 @@ const refundCall2URL = "https://taofi-api.web.app/getRefundCall";
 //     // });
 //   });
 // });
+
+describe('SwapAndBridgeAndCall', () => {
+  it('Transfer', async () => {
+    const { deployer } = await getNamedAccounts();
+    const { rawTx } = deployments;
+
+    const postData = {
+        receiver: deployer,
+        amount: "500000000", // 0.5 SN10
+        subnetinfo: { netuid: 10, hotkey: "0xacf34e305f1474e4817a66352af736fe6b0bcf5cdfeef18c441e24645c742339" }
+    };
+
+    const response = await axios.post(TransferCallURL, postData);
+    console.log("Response data:", response.data);
+
+    await rawTx({
+      value: response.data.hyperlaneFee,
+      to: response.data.to,
+      data: response.data.data,
+      from: deployer
+    } as SimpleTx)
+  });
+});
