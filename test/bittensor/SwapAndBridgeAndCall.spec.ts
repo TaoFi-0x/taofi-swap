@@ -69,61 +69,67 @@ const TransferCallURL = "https://taofi-api.web.app/getTransferCall";
 //   });
 // });
 
-// describe('SwapAndBridgeAndCall', () => {
-//   it('Swap, Bridge, Stake - 2', async () => {
-//     const { deployer } = await getNamedAccounts();
-//     const { rawTx } = deployments;
-//     const fromTokenAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";  //USDC (base)
-//     const fromDecimals = 6; // USDC decimals
-//     const fromAmount = "300000000"  // 300 USDC
+describe('SwapAndBridgeAndCall', () => {
+    it('Swap, Bridge, Stake - 2', async () => {
+        const { deployer } = await getNamedAccounts();
+        const { rawTx } = deployments;
+        const fromTokenAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";  //USDC (base)
+        const fromDecimals = 6; // USDC decimals
+        const fromAmount = "50000000"  // 50 USDC
+        const subnetids = [10];
+        // const subnetids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 72, 73, 75, 77, 78, 79, 80, 81, 84, 85, 87, 88, 89, 90, 93, 94, 96, 102, 106, 111, 124];
+            // [103, 104, 107, 108, 109]  unnecessary
+        
+        for (const subnetid of subnetids) {
+            console.log("========= Working for subnetid = ", subnetid);
+            let response = await axios.post(
+                quoteURL,
+                {
+                    subnetuid: subnetid,
+                    fromTokenInfo: {
+                        address: fromTokenAddress,
+                        decimals: fromDecimals,
+                        amount: fromAmount
+                    }
+                }
+            );
+            console.log("Response data:", response.data);
 
-//     let response = await axios.post(
-//       quoteURL, 
-//       {
-//         subnetuid: 10,
-//         fromTokenInfo: {
-//           address: fromTokenAddress,
-//           decimals:fromDecimals,
-//           amount: fromAmount 
-//         }
-//       }
-//     );
-//     console.log("Response data:", response.data);
+            response = await axios.post(
+                call2URL,
+                {
+                    sender: deployer,
+                    subnetInfo: {
+                        netuid: subnetid,
+                        hotkey: "0xacf34e305f1474e4817a66352af736fe6b0bcf5cdfeef18c441e24645c742339"
+                    },
+                    fromTokenInfo: {
+                        address: fromTokenAddress,
+                        decimals: fromDecimals,
+                        amount: fromAmount
+                    },
+                    expectedAlphaAmount: response.data.expectedAlphaAmount,
+                    slippage: 200,  // 2%
+                    referralId: deployer
+                }
+            );
+            console.log("Response data:", response.data);
 
-//     response = await axios.post(
-//       call2URL, 
-//       {
-//         sender: deployer,
-//         subnetInfo: {
-//           netuid: 10,
-//           hotkey: "0xacf34e305f1474e4817a66352af736fe6b0bcf5cdfeef18c441e24645c742339"
-//         },
-//         fromTokenInfo: {
-//           address: fromTokenAddress,
-//           decimals: fromDecimals,
-//           amount: fromAmount
-//         },
-//         expectedAlphaAmount: response.data.expectedAlphaAmount,
-//         slippage: 90,  // 0.9%
-//         referralId: deployer
-//       }
-//     );
-//     console.log("Response data:", response.data);
+            const fromToken = await ethers.getContractAt('ERC20', fromTokenAddress);
 
-//     const fromToken = await ethers.getContractAt('ERC20', fromTokenAddress);
+            if ((await fromToken.allowance(deployer, response.data.to)).lt(fromAmount)) {
+                await fromToken.approve(response.data.to, "115792089237316195423570985008687907853269984665640564039457584007913129639935");
+            }
 
-//     if ((await fromToken.allowance(deployer, response.data.to)).lt(fromAmount)) {
-//       await fromToken.approve(response.data.to, fromAmount);
-//     }
-
-//     await rawTx({
-//       value: response.data.hyperlaneFee,
-//       to: response.data.to,
-//       data: response.data.data,
-//       from: deployer
-//     } as SimpleTx)
-//   });
-// });
+            await rawTx({
+                value: response.data.hyperlaneFee,
+                to: response.data.to,
+                data: response.data.data,
+                from: deployer
+            } as SimpleTx)
+        }
+  });
+});
 
 // describe('SwapAndBridgeAndCall', () => {
 //   it('Unstake, Bridge', async () => {
@@ -174,7 +180,7 @@ const TransferCallURL = "https://taofi-api.web.app/getTransferCall";
 //       reverseQuoteURL, 
 //       {
 //         subnetuid: 10, 
-//         fromAmount: "58000000000", // 58 SN10
+//         fromAmount: "10000000000", // 10 SN10
 //       }
 //     );
 //     console.log("Response data:", response.data);
@@ -188,7 +194,7 @@ const TransferCallURL = "https://taofi-api.web.app/getTransferCall";
 //           netuid: 10,
 //           hotkey: "0xacf34e305f1474e4817a66352af736fe6b0bcf5cdfeef18c441e24645c742339"
 //         },
-//         fromAmount: "58000000000", // 58 SN10
+//         fromAmount: "10000000000", // 10 SN10
 //         expectedToAmount: response.data.expectedToAmount,
 //         slippage: 90,  // 0.9%
 //         referralId: deployer
@@ -234,7 +240,7 @@ const TransferCallURL = "https://taofi-api.web.app/getTransferCall";
 
 //     const postData = {
 //       receiver: deployer,
-//       amount: "2000000" // 2 USDC
+//       amount: "55000000" // 55 USDC
 //     };
 
 //     const response = await axios.post(refundCall2URL, postData);
@@ -258,25 +264,25 @@ const TransferCallURL = "https://taofi-api.web.app/getTransferCall";
 //   });
 // });
 
-describe('SwapAndBridgeAndCall', () => {
-  it('Transfer', async () => {
-    const { deployer } = await getNamedAccounts();
-    const { rawTx } = deployments;
+// describe('SwapAndBridgeAndCall', () => {
+//   it('Transfer', async () => {
+//     const { deployer } = await getNamedAccounts();
+//     const { rawTx } = deployments;
 
-    const postData = {
-        receiver: deployer,
-        amount: "500000000", // 0.5 SN10
-        subnetinfo: { netuid: 10, hotkey: "0xacf34e305f1474e4817a66352af736fe6b0bcf5cdfeef18c441e24645c742339" }
-    };
+//     const postData = {
+//         receiver: deployer,
+//         amount: "500000000", // 0.5 SN10
+//         subnetinfo: { netuid: 10, hotkey: "0xacf34e305f1474e4817a66352af736fe6b0bcf5cdfeef18c441e24645c742339" }
+//     };
 
-    const response = await axios.post(TransferCallURL, postData);
-    console.log("Response data:", response.data);
+//     const response = await axios.post(TransferCallURL, postData);
+//     console.log("Response data:", response.data);
 
-    await rawTx({
-      value: response.data.hyperlaneFee,
-      to: response.data.to,
-      data: response.data.data,
-      from: deployer
-    } as SimpleTx)
-  });
-});
+//     await rawTx({
+//       value: response.data.hyperlaneFee,
+//       to: response.data.to,
+//       data: response.data.data,
+//       from: deployer
+//     } as SimpleTx)
+//   });
+// });
