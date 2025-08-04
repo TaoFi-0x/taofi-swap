@@ -24,6 +24,7 @@ contract SwapAndStake is Ownable {
         bytes32 hotkey;
         uint256 netuid;
         uint256 minAlphaToReceive;
+        address receiver;
     }
 
     /// @notice Parameters for unstaking TAO.
@@ -160,11 +161,14 @@ contract SwapAndStake is Ownable {
             IWTAO(wtao).withdraw(amountOut);
         }
 
+        // no receiver means ICA will hold alpha token.
+        address alphaTokenReceiver = stakeParams.receiver == address(0) ? msg.sender : stakeParams.receiver;
+
         IStakingManager(stakingManager).stake{value: amountOut}(
-            stakeParams.hotkey, stakeParams.netuid, msg.sender, stakeParams.minAlphaToReceive
+            stakeParams.hotkey, stakeParams.netuid, alphaTokenReceiver, stakeParams.minAlphaToReceive
         );
 
-        emit Stake(msg.sender, stakeParams.hotkey, stakeParams.netuid, amountOut, uiFeeParams.receiver, feeAmount);
+        emit Stake(alphaTokenReceiver, stakeParams.hotkey, stakeParams.netuid, amountOut, uiFeeParams.receiver, feeAmount);
     }
 
     /**
