@@ -1,5 +1,5 @@
 {
-  "address": "0xc6EaF8A8960E217D10dE022a4d61DF26512027E4",
+  "address": "0x1b05ce15c459e257a82cA5eA57C36DD8D148fbAd",
   "abi": [
     {
       "inputs": [
@@ -407,6 +407,11 @@
               "internalType": "uint256",
               "name": "minAlphaToReceive",
               "type": "uint256"
+            },
+            {
+              "internalType": "address",
+              "name": "receiver",
+              "type": "address"
             }
           ],
           "internalType": "struct SwapAndStake.StakeParams",
@@ -609,5 +614,5 @@
       "type": "receive"
     }
   ],
-  "numDeployments": 13
+  "numDeployments": 14
 }
