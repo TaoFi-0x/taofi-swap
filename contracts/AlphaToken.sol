@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: ISC
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.21;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -8,6 +8,10 @@ import {ERC20PermitUpgradeable} from
     "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 
 contract AlphaToken is OwnableUpgradeable, ERC20Upgradeable, ERC20PermitUpgradeable {
+    constructor() {
+        _disableInitializers();
+    }
+
     function initialize(string memory name, string memory symbol) external initializer {
         __Ownable_init();
         __ERC20_init(name, symbol);

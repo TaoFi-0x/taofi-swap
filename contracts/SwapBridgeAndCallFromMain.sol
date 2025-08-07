@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: ISC
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.21;
 
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -46,24 +46,23 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
     uint256 private constant PERCENTAGE_FACTOR = 100_00;
     uint32 private constant DESTINATION_CHAIN_ID = 964;
 
-    uint256 public fee;
     address public bridgeToken;
     address public bridge;
     address public interchainAccountRouter;
     address public treasury;
 
-    mapping(address => bool) public isTargetAddressBlacklisted;
+    mapping(address => bool) public isTargetAddressWhitelisted;
 
-    event FeeUpdated(uint256 newFee);
+    // to => selector => allowed
+    mapping(bytes32 => mapping(bytes4 => bool)) public allowedRemoteCalls;
+
     event BridgeTokenUpdated(address newBridgeToken);
     event BridgeUpdated(address newBridge);
     event InterchainAccountRouterUpdated(address newInterchainAccountRouter);
     event SwapAndBridgeExecuted(address indexed target, bytes data);
-    event FeeChargedWithReferral(bytes tag, uint256 feeAmount);
-    event TreasuryUpdated(address newTreasury);
-    event TargetAddressBlacklisted(address indexed target);
+    event TargetAddressWhitelisted(address indexed target);
+    event AllowedRemoteCallUpdated(bytes32 indexed target, bytes4 indexed selector, bool allowed);
 
-    error INVALID_FEE_VALUE();
     error INVALID_ADDRESS();
     error INVALID_VALUE();
     error NOT_CONTRACT();
@@ -71,22 +70,15 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
     error BRIDGE_FAILED();
     error EXTERNAL_CALL_FAILED();
     error INVALID_TARGET();
+    error UNAUTHORIZED_CALL_TYPE();
+
+    constructor() {
+        _disableInitializers();
+    }
 
     function initialize() external initializer {
         __Ownable_init();
         __ReentrancyGuard_init();
-    }
-
-    /**
-     * @dev Set the fee of the swap and bridge.
-     * @param _fee - The fee percentage value. 1% = 100
-     */
-    function setFee(uint256 _fee) external payable onlyOwner {
-        if (_fee > PERCENTAGE_FACTOR) revert INVALID_FEE_VALUE();
-
-        fee = _fee;
-
-        emit FeeUpdated(_fee);
     }
 
     /**
@@ -123,24 +115,26 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
     }
 
     /**
-     * @dev Set the treasury address.
-     * @param _treasury - The address of the treasury.
+     * @dev Set the target address to be blacklisted.
+     * @param _target - The address of the target.
+     * @param _isWhitelisted - The boolean value to determine if the target is blacklisted.
      */
-    function setTreasury(address _treasury) external payable onlyOwner {
-        treasury = _treasury;
+    function setTargetAddressWhitelisted(address _target, bool _isWhitelisted) external payable onlyOwner {
+        isTargetAddressWhitelisted[_target] = _isWhitelisted;
 
-        emit TreasuryUpdated(_treasury);
+        emit TargetAddressWhitelisted(_target);
     }
 
     /**
-     * @dev Set the target address to be blacklisted.
-     * @param _target - The address of the target.
-     * @param _isBlacklisted - The boolean value to determine if the target is blacklisted.
+     * @dev Adds or removes an allowed remote function selector for a given target.
+     * @param _target The target address (as bytes32) to control permissions for.
+     * @param _selector The 4-byte function selector to allow or disallow.
+     * @param _allowed A boolean indicating whether the call is permitted.
      */
-    function setTargetAddressBlacklisted(address _target, bool _isBlacklisted) external payable onlyOwner {
-        isTargetAddressBlacklisted[_target] = _isBlacklisted;
+    function setAllowedRemoteCall(bytes32 _target, bytes4 _selector, bool _allowed) external payable onlyOwner {
+        allowedRemoteCalls[_target][_selector] = _allowed;
 
-        emit TargetAddressBlacklisted(_target);
+        emit AllowedRemoteCallUpdated(_target, _selector, _allowed);
     }
 
     /**
@@ -149,13 +143,11 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
      * @param _swapParams The parameters for the swap. Including the from token, from amount, approval address, target and data.
      * @param _params The parameters for the remote call.
      * @param _bridgeCost The cost of the bridge.
-     * @param _feeReferral The referral fee.
      */
     function lifiSwapBridgeAndCall(
         SwapParams calldata _swapParams,
         RemoteCallsParams calldata _params,
-        uint256 _bridgeCost,
-        bytes calldata _feeReferral
+        uint256 _bridgeCost
     ) external payable nonReentrant {
         address _fromToken = _swapParams.fromToken;
         uint256 _fromAmount = _swapParams.fromAmount;
@@ -178,7 +170,7 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
 
             if (_fromToken == address(0)) {
                 // fromToken is ETH
-                if (msg.value < _fromAmount) revert SWAP_FAILED();
+                if (msg.value < _fromAmount + _bridgeCost) revert SWAP_FAILED();
 
                 // LiFi Swap
                 _executeExternalCall(_target, _fromAmount, _data);
@@ -187,24 +179,31 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
                 IERC20(_fromToken).safeTransferFrom(msg.sender, address(this), _fromAmount);
 
                 // Approve
-                IERC20(_fromToken).safeApprove(_approvalAddress, 0);
-                IERC20(_fromToken).safeApprove(_approvalAddress, _fromAmount);
+                IERC20(_fromToken).forceApprove(_approvalAddress, _fromAmount);
 
                 // LiFi Swap
                 _executeExternalCall(_target, 0, _data);
+
+                uint256 remainingBalance = IERC20(_fromToken).balanceOf(address(this));
+                if (remainingBalance > 0) revert SWAP_FAILED();
             }
 
             emit SwapAndBridgeExecuted(_target, _data);
         }
 
-        _bridgeAndCall(_params, valueSpent, _bridgeCost, _feeReferral);
+        _bridgeAndCall(_params, valueSpent, _bridgeCost);
     }
 
     /**
      * @dev Executes a dest chain function to process exception case
      * @param _params The call data array for the remote call of the dest chain.
      */
-    function remoteCall(RemoteCallsParams calldata _params) public payable nonReentrant {
+    function remoteCall(RemoteCallsParams calldata _params) external payable nonReentrant {
+        uint256 callCnt = _params.calls.length;
+        for (uint256 i; i < callCnt; ++i) {
+            if (!isAllowedRemoteCall(_params.calls[i])) revert UNAUTHORIZED_CALL_TYPE();
+        }
+
         bytes32 userSpecificSalt = bytes32(uint256(uint160(msg.sender)));
         IInterchainAccountRouterWithOverrides(interchainAccountRouter).callRemoteWithOverrides{value: msg.value}(
             DESTINATION_CHAIN_ID,
@@ -216,41 +215,63 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
         );
     }
 
-    function _bridgeAndCall(
-        RemoteCallsParams calldata _params,
-        uint256 valueSpent,
-        uint256 _bridgeCost,
-        bytes calldata feeReferral
-    ) internal {
-        address _toToken = bridgeToken;
-        address _bridge = bridge;
-        uint256 toAmount = IERC20(_toToken).balanceOf(address(this));
+    /**
+     * @dev Allows the contract owner to recover ERC20 tokens that were mistakenly sent to this contract.
+     *      Can be used in emergency cases to transfer out stuck tokens.
+     * @param token The address of the ERC20 token to recover.
+     * @param to The address that will receive the recovered tokens.
+     * @param amount The amount of tokens to transfer.
+     */
+    function emergencyTokenRecovery(address token, address to, uint256 amount) external payable onlyOwner {
+        IERC20(token).safeTransfer(to, amount);
+    }
+
+    /**
+     * @dev Allows the contract owner to recover native ETH that was mistakenly sent to this contract.
+     *      Can be used in emergency cases to transfer out stuck ETH.
+     * @param to The address that will receive the recovered ETH.
+     * @param amount The amount of ETH to transfer.
+     */
+    function emergencyETHRecovery(address to, uint256 amount) external payable onlyOwner {
+        (bool success,) = to.call{value: amount}("");
+        require(success, "ETH transfer failed");
+    }
+
+    /**
+     * @dev Checks whether a given remote call is allowed.
+     *      Validates both the target and the function selector against the whitelist.
+     * @param _call The call struct containing the target, value, and calldata.
+     * @return True if the call is authorized, false otherwise.
+     */
+    function isAllowedRemoteCall(Call calldata _call) public view returns (bool) {
+        if (_call.data.length < 4) return false; // Invalid call data
+
+        return allowedRemoteCalls[_call.to][bytes4(_call.data)];
+    }
+
+    function _bridgeAndCall(RemoteCallsParams calldata _params, uint256 valueSpent, uint256 _bridgeCost) internal {
+        uint256 toAmount = IERC20(bridgeToken).balanceOf(address(this));
         if (toAmount == 0) revert SWAP_FAILED();
 
         // fee processing
-        uint256 swapAmount = (toAmount * (PERCENTAGE_FACTOR - fee)) / PERCENTAGE_FACTOR;
-        uint256 feeAmount = toAmount - swapAmount;
 
-        IERC20(_toToken).safeTransfer(treasury, feeAmount);
-        emit FeeChargedWithReferral(feeReferral, feeAmount);
-
-        IERC20(_toToken).safeApprove(_bridge, 0);
-        IERC20(_toToken).safeApprove(_bridge, swapAmount);
+        IERC20(bridgeToken).forceApprove(bridge, toAmount);
 
         // Get the interchain account address for the contract on the destination chain
-        IInterchainAccountRouterWithOverrides ica = IInterchainAccountRouterWithOverrides(interchainAccountRouter);
         bytes32 userSpecificSalt = bytes32(uint256(uint160(msg.sender)));
 
         // Avoid stack too deep
         {
+            IInterchainAccountRouterWithOverrides ica = IInterchainAccountRouterWithOverrides(interchainAccountRouter);
+
             address routerAddress = address(uint160(uint256(_params.router)));
             address ismAddress = address(uint160(uint256(_params.ism)));
             address userIcaOnDestination =
                 ica.getRemoteInterchainAccount(address(this), routerAddress, ismAddress, userSpecificSalt);
 
             // Bridge
-            IBridge(_bridge).transferRemote{value: _bridgeCost}(
-                DESTINATION_CHAIN_ID, bytes32(uint256(uint160(userIcaOnDestination))), swapAmount
+            IBridge(bridge).transferRemote{value: _bridgeCost}(
+                DESTINATION_CHAIN_ID, bytes32(uint256(uint160(userIcaOnDestination))), toAmount
             );
         }
 
@@ -268,7 +289,7 @@ contract SwapBridgeAndCallFromMain is Initializable, OwnableUpgradeable, Reentra
     }
 
     function _executeExternalCall(address target, uint256 value, bytes calldata data) internal {
-        if (isTargetAddressBlacklisted[target]) {
+        if (!isTargetAddressWhitelisted[target]) {
             revert INVALID_TARGET();
         }
 

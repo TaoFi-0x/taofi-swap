@@ -1,6 +1,6 @@
-import { deployments, getNamedAccounts, upgrades, ethers } from "hardhat";
-import { HardhatRuntimeEnvironment } from "hardhat/types";
+import { deployments, ethers } from "hardhat";
 import { DeployFunction } from "hardhat-deploy/types";
+import { HardhatRuntimeEnvironment } from "hardhat/types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
@@ -10,29 +10,36 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
 
   const { save, getArtifact } = deployments;
 
-  const impleContract = await ethers.getContractFactory("SwapBridgeAndCallFromMain");
+  const impleContractFactory = await ethers.getContractFactory("SwapBridgeAndCallFromMain");
+  const implementation = await impleContractFactory.deploy();
+  await implementation.deployed();
 
-  // Deploy as an upgradeable contract
-  const proxy = await upgrades.deployProxy(impleContract, [], {
-    initializer: "initialize",
-    kind: "transparent", // or 'uups' if using UUPS
-  });
+  console.log("Implementation deployed to", implementation.address);
+
+  const initializeFunctionCall = impleContractFactory.interface.encodeFunctionData(
+    "initialize",
+    []
+  );
+
+  const ProxyFactory = await ethers.getContractFactory("ProxyContract");
+  const encodedConstructorArguments = ethers.utils.defaultAbiCoder.encode(
+    ["address", "address", "bytes"],
+    [implementation.address, "0x218289B9E70869Dd30e608Aa111Cf1F045765a4b", initializeFunctionCall]
+  );
+  console.log("initializeFunctionCall", initializeFunctionCall);
+
+  const proxyContract = await ProxyFactory.deploy(encodedConstructorArguments);
+  await proxyContract.deployed();
   
   save("SwapBridgeAndCallFromMain", {
     abi: (await getArtifact("SwapBridgeAndCallFromMain")).abi,
-    address: proxy.address,
+    address: proxyContract.address,
   });
 };
 
 export default func;
 
 func.skip = async (hre: HardhatRuntimeEnvironment) => {
-  // localhost
-  if (process.env.FORK) {
-    return process.env.FORK !== "main";
-  }
-
-  // mainnet
   return true;
 };
 
