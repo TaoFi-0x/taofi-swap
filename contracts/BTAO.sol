@@ -4,7 +4,6 @@ pragma solidity ^0.8.21;
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {IXERC20} from "./interfaces/IXERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IBridge} from "./interfaces/IBridge.sol";
 import {ISTAO} from "./interfaces/ISTAO.sol";
