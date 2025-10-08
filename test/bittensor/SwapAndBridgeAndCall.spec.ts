@@ -351,52 +351,52 @@ const TransferCallURL = "https://taofi-api.web.app/getTransferCall";
 //   });
 // });
 
-describe('SwapAndBridgeAndCall', () => {
-    it('Swap, Bridge', async () => {
-        const { deployer } = await getNamedAccounts();
-        const { rawTx } = deployments;
-        const fromTokenAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";  //USDC (base)
-        const fromDecimals = 6; // USDC decimals
-        const fromAmount = "1000000"  // 1 USDC
+// describe('SwapAndBridgeAndCall', () => {
+//     it('Swap, Bridge', async () => {
+//         const { deployer } = await getNamedAccounts();
+//         const { rawTx } = deployments;
+//         const fromTokenAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";  //USDC (base)
+//         const fromDecimals = 6; // USDC decimals
+//         const fromAmount = "1000000"  // 1 USDC
         
-        let response = await axios.post(
-            taoQuoteURL,
-            {
-                fromTokenInfo: {
-                    address: fromTokenAddress,
-                    decimals: fromDecimals,
-                    amount: fromAmount
-                }
-            }
-        );
-        console.log("Response data:", response.data);
+//         let response = await axios.post(
+//             taoQuoteURL,
+//             {
+//                 fromTokenInfo: {
+//                     address: fromTokenAddress,
+//                     decimals: fromDecimals,
+//                     amount: fromAmount
+//                 }
+//             }
+//         );
+//         console.log("Response data:", response.data);
 
-        response = await axios.post(
-            taoURL,
-            {
-                sender: deployer,
-                fromTokenInfo: {
-                    address: fromTokenAddress,
-                    decimals: fromDecimals,
-                    amount: fromAmount
-                },
-                expectedTaoAmount: response.data.expectedTaoAmount,
-                slippage: 200,  // 2%
-            }
-        );
-        console.log("Response data:", response.data);
+//         response = await axios.post(
+//             taoURL,
+//             {
+//                 sender: deployer,
+//                 fromTokenInfo: {
+//                     address: fromTokenAddress,
+//                     decimals: fromDecimals,
+//                     amount: fromAmount
+//                 },
+//                 expectedTaoAmount: response.data.expectedTaoAmount,
+//                 slippage: 200,  // 2%
+//             }
+//         );
+//         console.log("Response data:", response.data);
 
-        const fromToken = await ethers.getContractAt('IERC20', fromTokenAddress);
+//         const fromToken = await ethers.getContractAt('IERC20', fromTokenAddress);
 
-        if ((await fromToken.allowance(deployer, response.data.to)).lt(fromAmount)) {
-            await fromToken.approve(response.data.to, "115792089237316195423570985008687907853269984665640564039457584007913129639935");
-        }
+//         if ((await fromToken.allowance(deployer, response.data.to)).lt(fromAmount)) {
+//             await fromToken.approve(response.data.to, "115792089237316195423570985008687907853269984665640564039457584007913129639935");
+//         }
 
-        await rawTx({
-            value: response.data.hyperlaneFee,
-            to: response.data.to,
-            data: response.data.data,
-            from: deployer
-        } as SimpleTx)
-  });
-});
+//         await rawTx({
+//             value: response.data.hyperlaneFee,
+//             to: response.data.to,
+//             data: response.data.data,
+//             from: deployer
+//         } as SimpleTx)
+//   });
+// });
