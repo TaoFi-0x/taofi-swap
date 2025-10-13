@@ -1,0 +1,59 @@
+{
+  "address": "0x93396ac6eFeBb8012F7A670b13eC8Cc827f206cD",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_beaconProxyFactory",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "name": "SafeERC20FailedOperation",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "beaconProxyFactory",
+      "outputs": [
+        {
+          "internalType": "contract IBeaconProxyFactory",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "initialOwner",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "address[]",
+          "name": "alphaTokens",
+          "type": "address[]"
+        }
+      ],
+      "name": "createAccountAndMigrate",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "numDeployments": 1
+}

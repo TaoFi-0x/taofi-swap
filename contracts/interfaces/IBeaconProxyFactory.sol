@@ -15,4 +15,9 @@ interface IBeaconProxyFactory {
     /// @param initialOwner The address of the initial owner
     /// @return proxy The predicted address of the BeaconProxy
     function getNextProxyAddress(bytes32 initialOwner) external view returns (address proxy);
+
+    /// @notice Deploys a BeaconProxy
+    /// @param initialOwner The address of the initial owner
+    /// @return proxy The address of the deployed BeaconProxy
+    function createProxy(bytes32 initialOwner) external returns (address proxy);
 }
