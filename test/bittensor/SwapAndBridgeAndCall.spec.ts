@@ -3,6 +3,8 @@ import axios from "axios";
 import { SimpleTx } from 'hardhat-deploy/types';
 import { impersonateAccountsHardhat } from '../helpers/misc-utils';
 import { parseEther } from 'ethers/lib/utils';
+import { mint } from '../helpers/mint';
+import { BIT_USDC, BIT_WTAO } from '../helpers/constants';
 
 const callURL = "https://taofi-api.web.app/getBuyCall_Deprecated";
 const call2URL = "https://taofi-api.web.app/getBuyCall";
@@ -399,4 +401,43 @@ const TransferCallURL = "https://taofi-api.web.app/getTransferCall";
 //             from: deployer
 //         } as SimpleTx)
 //   });
+
+    // it('User calls refund to swap USDC to WTAO and bridge remaining', async () => {
+    //     const [user] = await ethers.getSigners();
+    //     const { get } = deployments;
+    
+    //     const swapAndStake = await ethers.getContractAt('SwapAndStake', (await get('SwapAndStake')).address);
+    //     const usdc = await ethers.getContractAt('IERC20', BIT_USDC); 
+    //     const wtao = await ethers.getContractAt('IERC20', BIT_WTAO);     
+    //     const userAddress = await user.getAddress();
+    
+    //     const totalAmount = ethers.utils.parseUnits('205', 6); // 205 USDC
+    
+    //     // Mint USDC for user
+    //     await mint('USDC', totalAmount, userAddress, 'bittensor');
+    
+    //     // Approve SwapAndStake
+    //     await usdc.connect(user).approve(swapAndStake.address, totalAmount);
+    
+    //     // Prepare swap params (ExactOutputSingleParams)
+    //     const swapParams = {
+    //         tokenIn: usdc.address,
+    //         tokenOut: wtao.address,
+    //         fee: 3000, // example Uniswap pool fee
+    //         recipient: swapAndStake.address,
+    //         deadline: Math.floor(Date.now() / 1000) + 3600,
+    //         amountOut: "711166744988779",
+    //         amountInMaximum: "3201000",
+    //         sqrtPriceLimitX96: 0
+    //     };
+    
+    //     const bridgeParams = {
+    //         bridgeFee: "711166744988779",
+    //         destinationChainId: 8453,
+    //         receiver: ethers.utils.hexZeroPad(userAddress, 32)
+    //     };
+    
+    //     // Execute refund
+    //     await swapAndStake.refund(swapParams, bridgeParams, totalAmount)
+    // });
 // });
