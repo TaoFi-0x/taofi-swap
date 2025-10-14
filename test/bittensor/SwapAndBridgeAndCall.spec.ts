@@ -16,6 +16,8 @@ const reverseQuoteURL = "https://taofi-api.web.app/getSellQuote";
 const refundCallURL = "https://taofi-api.web.app/getRefundCall_Deprecated";
 const taoQuoteURL = "https://taofi-api.web.app/getTaoQuote";
 const taoURL = "https://taofi-api.web.app/getTaoCall";
+const nativeTaoQuoteURL = "https://taofi-api.web.app/getNativeTaoQuote";
+const nativeTaoURL = "https://taofi-api.web.app/getNativeTaoCall";
 const refundCall2URL = "https://taofi-api.web.app/getRefundCall";
 const TransferCallURL = "https://taofi-api.web.app/getTransferCall";
 
@@ -401,43 +403,96 @@ const TransferCallURL = "https://taofi-api.web.app/getTransferCall";
 //             from: deployer
 //         } as SimpleTx)
 //   });
+// });
 
-    // it('User calls refund to swap USDC to WTAO and bridge remaining', async () => {
-    //     const [user] = await ethers.getSigners();
-    //     const { get } = deployments;
-    
-    //     const swapAndStake = await ethers.getContractAt('SwapAndStake', (await get('SwapAndStake')).address);
-    //     const usdc = await ethers.getContractAt('IERC20', BIT_USDC); 
-    //     const wtao = await ethers.getContractAt('IERC20', BIT_WTAO);     
-    //     const userAddress = await user.getAddress();
-    
-    //     const totalAmount = ethers.utils.parseUnits('205', 6); // 205 USDC
-    
-    //     // Mint USDC for user
-    //     await mint('USDC', totalAmount, userAddress, 'bittensor');
-    
-    //     // Approve SwapAndStake
-    //     await usdc.connect(user).approve(swapAndStake.address, totalAmount);
-    
-    //     // Prepare swap params (ExactOutputSingleParams)
-    //     const swapParams = {
-    //         tokenIn: usdc.address,
-    //         tokenOut: wtao.address,
-    //         fee: 3000, // example Uniswap pool fee
-    //         recipient: swapAndStake.address,
-    //         deadline: Math.floor(Date.now() / 1000) + 3600,
-    //         amountOut: "711166744988779",
-    //         amountInMaximum: "3201000",
-    //         sqrtPriceLimitX96: 0
-    //     };
-    
-    //     const bridgeParams = {
-    //         bridgeFee: "711166744988779",
-    //         destinationChainId: 8453,
-    //         receiver: ethers.utils.hexZeroPad(userAddress, 32)
-    //     };
-    
-    //     // Execute refund
-    //     await swapAndStake.refund(swapParams, bridgeParams, totalAmount)
-    // });
+describe('SwapAndTransfer', () => {
+    it('Swap, Transfer', async () => {
+        const { deployer } = await getNamedAccounts();
+        const { rawTx } = deployments;
+        const fromTokenAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";  //USDC (base)
+        const fromDecimals = 6; // USDC decimals
+        const fromAmount = "50000000"  // 50 USDC
+        
+        let response = await axios.post(
+            nativeTaoQuoteURL,
+            {
+                fromTokenInfo: {
+                    address: fromTokenAddress,
+                    decimals: fromDecimals,
+                    amount: fromAmount
+                }
+            }
+        );
+        console.log("Response data:", response.data);
+
+        response = await axios.post(
+            nativeTaoURL,
+            {
+                sender: deployer,
+                receiver: "0x3e86a0c14dcb46407a7c75e12059765b0779688543cf254471aa5a246f175d0e",     //5DUgpSvNvDS5C6aRvrJrtBiKirmVxw6UcnWYoPFDZmwSkVQA
+                fromTokenInfo: {
+                    address: fromTokenAddress,
+                    decimals: fromDecimals,
+                    amount: fromAmount
+                },
+                expectedTaoAmount: response.data.expectedTaoAmount,
+                slippage: 200,  // 2%
+            }
+        );
+        console.log("Response data:", response.data);
+
+        const fromToken = await ethers.getContractAt('IERC20', fromTokenAddress);
+
+        if ((await fromToken.allowance(deployer, response.data.to)).lt(fromAmount)) {
+            await fromToken.approve(response.data.to, "115792089237316195423570985008687907853269984665640564039457584007913129639935");
+        }
+
+        await rawTx({
+            value: response.data.hyperlaneFee,
+            to: response.data.to,
+            data: response.data.data,
+            from: deployer
+        } as SimpleTx)
+  });
+});
+
+// describe('SwapAndBridgeAndCall', () => {
+//     it('User calls refund to swap USDC to WTAO and bridge remaining', async () => {
+//         const [user] = await ethers.getSigners();
+//         const { get } = deployments;
+
+//         const swapAndStake = await ethers.getContractAt('SwapAndStake', (await get('SwapAndStake')).address);
+//         const usdc = await ethers.getContractAt('IERC20', BIT_USDC); 
+//         const wtao = await ethers.getContractAt('IERC20', BIT_WTAO);     
+//         const userAddress = await user.getAddress();
+
+//         const totalAmount = ethers.utils.parseUnits('205', 6); // 205 USDC
+
+//         // Mint USDC for user
+//         await mint('USDC', totalAmount, userAddress, 'bittensor');
+
+//         // Approve SwapAndStake
+//         await usdc.connect(user).approve(swapAndStake.address, totalAmount);
+
+//         // Prepare swap params (ExactOutputSingleParams)
+//         const swapParams = {
+//             tokenIn: usdc.address,
+//             tokenOut: wtao.address,
+//             fee: 3000, // example Uniswap pool fee
+//             recipient: swapAndStake.address,
+//             deadline: Math.floor(Date.now() / 1000) + 3600,
+//             amountOut: "711166744988779",
+//             amountInMaximum: "302000",
+//             sqrtPriceLimitX96: 0
+//         };
+
+//         const bridgeParams = {
+//             bridgeFee: "711166744988779",
+//             destinationChainId: 8453,
+//             receiver: ethers.utils.hexZeroPad(userAddress, 32)
+//         };
+
+//         // Execute refund
+//         await swapAndStake.refund(swapParams, bridgeParams, totalAmount)
+//     });
 // });
