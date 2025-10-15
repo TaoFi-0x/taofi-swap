@@ -14,9 +14,9 @@ describe("BeaconProxyFactory (unit, local)", function () {
   const toId = (addr: string) =>
     ethers.utils.hexZeroPad(addr.toLowerCase(), 32);
 
-  let impl: Contract; // initial implementation (logic)
-  let factory: Contract; // UpgradeableBeacon + factory
-  let chainId: number;
+  let impl: Contract; // MOSA implementation (logic)
+  let factory: Contract; // UpgradeableBeacon + factory front
+  let registry: Contract; // SmartAccountRegistry
 
   before(async () => {
     [deployer, alice, bob] = await ethers.getSigners();
@@ -24,156 +24,193 @@ describe("BeaconProxyFactory (unit, local)", function () {
     aliceAddr = await alice.getAddress();
     bobAddr = await bob.getAddress();
 
-    chainId = (await ethers.provider.getNetwork()).chainId;
-
-    // deploy initial implementation (logic)
-    const MOSA = await ethers.getContractFactory(
+    // 1) Deploy MOSA implementation
+    const MOSA_Impl = await ethers.getContractFactory(
       "MultiOwnableSmartAccount",
       deployer
     );
-    impl = await MOSA.deploy();
+    impl = await MOSA_Impl.deploy();
     await impl.deployed();
 
-    // deploy factory (UpgradeableBeacon) pointing to logic, owner=deployer
+    // 2) Deploy registry
+    const Registry = await ethers.getContractFactory(
+      "SmartAccountRegistry",
+      deployer
+    );
+    registry = await Registry.deploy();
+    await registry.deployed();
+
+    // 3) Deploy factory (UpgradeableBeacon owner = deployer)
     const Factory = await ethers.getContractFactory(
       "BeaconProxyFactory",
       deployer
     );
-    factory = await Factory.deploy(impl.address, deployerAddr);
+    factory = await Factory.deploy(
+      impl.address,
+      deployerAddr,
+      registry.address
+    );
     await factory.deployed();
   });
 
-  it("beacon implementation is set to the provided logic", async () => {
-    // UpgradeableBeacon exposes implementation()
+  it("exposes implementation() and smartAccountRegistry()", async () => {
     const implementation = await factory.implementation();
     expect(implementation).to.equal(impl.address);
+
+    const reg = await factory.smartAccountRegistry();
+    expect(reg).to.equal(registry.address);
   });
 
-  it("predicts proxy address via getNextProxyAddress and matches deployed proxy; initializes owner bytes32", async () => {
-    const initialOwnerId = toId(deployerAddr);
+  it("predicts proxy address deterministically (salt bound to sender) and initializes owners+factory", async () => {
+    const initialOwners = [toId(deployerAddr), toId(aliceAddr)];
+    const salt = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("salt-one"));
 
-    const predicted = await factory.getNextProxyAddress(initialOwnerId);
+    // IMPORTANT: pass the SAME sender you will use for createProxy
+    const predicted = await factory.getNextProxyAddress(
+      initialOwners,
+      salt,
+      deployerAddr
+    );
 
-    const tx = await factory.createProxy(initialOwnerId);
-    const receipt = await tx.wait();
+    // deploy from that sender
+    const tx = await factory.connect(deployer).createProxy(initialOwners, salt);
+    await tx.wait();
 
-    // read count after create
-    const countAfter = await factory.count();
-    expect(countAfter.toNumber()).to.equal(1);
-
-    // the return value is the proxy address (function returns address)
-    const actual = await factory.callStatic
-      .createProxy(initialOwnerId)
-      .catch(() => null);
-    // NOTE: callStatic would revert due to nonce; better to fetch event args or just use predicted.
-    // We'll just assert that the predicted address now has a deployed code size > 0.
-
+    // code exists at predicted
     const code = await ethers.provider.getCode(predicted);
     expect(code && code !== "0x").to.equal(true);
 
-    // attach MOSA ABI to the proxy address and verify initialization
+    // attach and verify initialization
     const proxy = await ethers.getContractAt(
       "MultiOwnableSmartAccount",
       predicted,
       deployer
     );
+
+    // factory wiring
+    expect(await proxy.getFactory()).to.equal(factory.address);
+
+    // owners set
     const owners: string[] = await proxy.getOwners(); // bytes32[]
-    expect(owners.length).to.equal(1);
-    expect(owners[0]).to.equal(initialOwnerId);
-    expect(await proxy.isOwner(initialOwnerId)).to.equal(true);
-    expect(await proxy.getNonce(initialOwnerId)).to.equal(0);
+    expect(owners.length).to.equal(2);
+    expect(owners).to.include(initialOwners[0]);
+    expect(owners).to.include(initialOwners[1]);
+
+    // nonces start at 0
+    expect(await proxy.getNonce(initialOwners[0])).to.equal(0);
+    expect(await proxy.getNonce(initialOwners[1])).to.equal(0);
   });
 
-  it("determinism: same initialOwner, different count -> different addresses; count increments", async () => {
-    const initialOwnerId = toId(aliceAddr);
+  it("different sender -> different predicted address for the same salt+owners", async () => {
+    const initialOwners = [toId(deployerAddr)];
+    const salt = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("salt-two"));
 
-    // count currently 1 from previous test
-    const countBefore = await factory.count();
-    const predicted1 = await factory.getNextProxyAddress(initialOwnerId);
-
-    // deploy first proxy for alice
-    const tx1 = await factory.createProxy(initialOwnerId);
-    await tx1.wait();
-
-    const countMid = await factory.count();
-    expect(countMid.toNumber()).to.equal(countBefore.toNumber() + 1);
-
-    // next predicted (different salt because count incremented)
-    const predicted2 = await factory.getNextProxyAddress(initialOwnerId);
-    expect(predicted2).to.not.equal(predicted1);
-
-    // deploy second proxy for alice
-    const tx2 = await factory.createProxy(initialOwnerId);
-    await tx2.wait();
-
-    const countAfter = await factory.count();
-    expect(countAfter.toNumber()).to.equal(countBefore.toNumber() + 2);
-
-    // verify both predicted proxies now exist and initialized
-    const code1 = await ethers.provider.getCode(predicted1);
-    const code2 = await ethers.provider.getCode(predicted2);
-    expect(code1 && code1 !== "0x").to.equal(true);
-    expect(code2 && code2 !== "0x").to.equal(true);
-
-    const proxy1 = await ethers.getContractAt(
-      "MultiOwnableSmartAccount",
-      predicted1,
-      deployer
+    const predictedFromDeployer = await factory.getNextProxyAddress(
+      initialOwners,
+      salt,
+      deployerAddr
     );
-    const proxy2 = await ethers.getContractAt(
-      "MultiOwnableSmartAccount",
-      predicted2,
-      deployer
+    const predictedFromAlice = await factory.getNextProxyAddress(
+      initialOwners,
+      salt,
+      aliceAddr
     );
 
-    expect(await proxy1.isOwner(initialOwnerId)).to.equal(true);
-    expect(await proxy2.isOwner(initialOwnerId)).to.equal(true);
+    expect(predictedFromDeployer).to.not.equal(predictedFromAlice);
+
+    // deploy with alice; must land at alice prediction
+    await (
+      await factory.connect(alice).createProxy(initialOwners, salt)
+    ).wait();
+    const codeAlice = await ethers.provider.getCode(predictedFromAlice);
+    expect(codeAlice && codeAlice !== "0x").to.equal(true);
   });
 
-  it("determinism across different initial owners (same count point) produces distinct addresses", async () => {
-    const ownerAlice = toId(aliceAddr);
-    const ownerBob = toId(bobAddr);
+  it("same inputs (owners, salt, sender) -> same predicted address before deployment", async () => {
+    const owners = [toId(bobAddr)];
+    const salt = ethers.utils.keccak256(ethers.utils.randomBytes(32));
 
-    const predictedAlice = await factory.getNextProxyAddress(ownerAlice);
-    const predictedBob = await factory.getNextProxyAddress(ownerBob);
+    const p1 = await factory.getNextProxyAddress(owners, salt, bobAddr);
+    const p2 = await factory.getNextProxyAddress(owners, salt, bobAddr);
+    expect(p1).to.equal(p2);
 
-    expect(predictedAlice).to.not.equal(predictedBob);
+    // deploy from bob and verify code exists at that address
+    await (await factory.connect(bob).createProxy(owners, salt)).wait();
+    const code = await ethers.provider.getCode(p1);
+    expect(code && code !== "0x").to.equal(true);
   });
 
-  it("upgrade beacon to a new implementation; existing proxies remain usable", async () => {
-    // deploy a fresh implementation (same code is fine for the test)
-    const MOSA2 = await ethers.getContractFactory(
+  it("new proxy → addOwner via self-call triggers registry registration", async () => {
+    // fresh proxy (owned by deployer)
+    const owners = [toId(deployerAddr)];
+    const salt = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("salt-reg"));
+
+    const predicted = await factory.getNextProxyAddress(
+      owners,
+      salt,
+      deployerAddr
+    );
+    await (await factory.connect(deployer).createProxy(owners, salt)).wait();
+
+    const proxy = await ethers.getContractAt(
+      "MultiOwnableSmartAccount",
+      predicted,
+      deployer
+    );
+
+    // prepare self-call addOwner(bytes32) for alice
+    const aliceId = toId(aliceAddr);
+    const addAlice = proxy.interface.encodeFunctionData("addOwner(bytes32)", [
+      aliceId,
+    ]);
+
+    await expect(proxy.connect(deployer).executeCall(predicted, 0, addAlice))
+      .to.emit(proxy, "OwnerAdded")
+      .withArgs(aliceId);
+
+    // registry reflects registration (SmartAccountRegistry.registerSmartAccount)
+    const registered = await registry.getSmartAccounts(aliceId);
+    expect(registered).to.include(predicted);
+  });
+
+  it("upgrade beacon to new implementation; newly created proxies use the new logic", async () => {
+    // deploy another MOSA impl (could be same code; this is just testing beacon upgrade)
+    const MOSA_New = await ethers.getContractFactory(
       "MultiOwnableSmartAccount",
       deployer
     );
-    const newImpl = await MOSA2.deploy();
+    const newImpl = await MOSA_New.deploy();
     await newImpl.deployed();
 
-    // owner (deployer) upgrades the beacon
     await expect(factory.connect(deployer).upgradeTo(newImpl.address))
       .to.emit(factory, "Upgraded")
       .withArgs(newImpl.address);
 
-    // implementation() should now be the new one
-    const implementation = await factory.implementation();
-    expect(implementation).to.equal(newImpl.address);
+    expect(await factory.implementation()).to.equal(newImpl.address);
 
-    // existing proxy (the very first predicted) should still function
-    // create a fresh one now to test post-upgrade path as well
-    const ownerId = toId(deployerAddr);
-    const predicted = await factory.getNextProxyAddress(ownerId);
-    await (await factory.createProxy(ownerId)).wait();
+    // create a new proxy after upgrade
+    const owners = [toId(aliceAddr), toId(bobAddr)];
+    const salt = ethers.utils.keccak256(
+      ethers.utils.toUtf8Bytes("salt-after-upgrade")
+    );
+    const predicted = await factory.getNextProxyAddress(
+      owners,
+      salt,
+      aliceAddr
+    );
+
+    await (await factory.connect(alice).createProxy(owners, salt)).wait();
 
     const proxy = await ethers.getContractAt(
       "MultiOwnableSmartAccount",
       predicted,
-      deployer
+      alice
     );
-    // `domainSeparatorV4` call works (just sanity)
-    const ds = await proxy.domainSeparatorV4();
-    expect(ds).to.match(/^0x[0-9a-fA-F]{64}$/);
+    expect(await proxy.getFactory()).to.equal(factory.address);
 
-    // owner should be set correctly on the new proxy as well
-    expect(await proxy.isOwner(ownerId)).to.equal(true);
+    const o = await proxy.getOwners();
+    expect(o.length).to.equal(2);
+    expect(o).to.include(owners[0]);
+    expect(o).to.include(owners[1]);
   });
 });

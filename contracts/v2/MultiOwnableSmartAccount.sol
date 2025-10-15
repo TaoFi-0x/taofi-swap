@@ -6,6 +6,8 @@ import {EnumerableSet} from "oz5/utils/structs/EnumerableSet.sol";
 import {ECDSA} from "oz5/utils/cryptography/ECDSA.sol";
 
 import {IMultiOwnableSmartAccount} from "../interfaces/IMultiOwnableSmartAccount.sol";
+import {IBeaconProxyFactory} from "../interfaces/IBeaconProxyFactory.sol";
+import {ISmartAccountRegistry} from "../interfaces/ISmartAccountRegistry.sol";
 
 contract MultiOwnableSmartAccount is IMultiOwnableSmartAccount, Initializable {
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -27,6 +29,8 @@ contract MultiOwnableSmartAccount is IMultiOwnableSmartAccount, Initializable {
     );
 
     struct MultiOwnableSmartAccountStorage {
+        /// @notice The address of the factory.
+        address factory;
         /// @notice The set of owners.
         EnumerableSet.Bytes32Set owners;
         /// @notice The nonce for each owner.
@@ -56,9 +60,19 @@ contract MultiOwnableSmartAccount is IMultiOwnableSmartAccount, Initializable {
 
     receive() external payable {}
 
-    function initialize(bytes32 initialOwnerId) external initializer {
-        _getMultiOwnableSmartAccountStorage().owners.add(initialOwnerId);
-        emit OwnerAdded(initialOwnerId);
+    function initialize(address factory, bytes32[] memory initialOwnerIds) external initializer {
+        MultiOwnableSmartAccountStorage storage $ = _getMultiOwnableSmartAccountStorage();
+        $.factory = factory;
+
+        for (uint256 i = 0; i < initialOwnerIds.length; i++) {
+            $.owners.add(initialOwnerIds[i]);
+            emit OwnerAdded(initialOwnerIds[i]);
+        }
+    }
+
+    /// @inheritdoc IMultiOwnableSmartAccount
+    function getFactory() public view returns (address) {
+        return _getMultiOwnableSmartAccountStorage().factory;
     }
 
     /// @inheritdoc IMultiOwnableSmartAccount
@@ -87,12 +101,18 @@ contract MultiOwnableSmartAccount is IMultiOwnableSmartAccount, Initializable {
 
         _getMultiOwnableSmartAccountStorage().owners.add(ownerId);
 
+        address smartAccountRegistry = IBeaconProxyFactory(getFactory()).smartAccountRegistry();
+        ISmartAccountRegistry(smartAccountRegistry).registerSmartAccount(ownerId);
+
         emit OwnerAdded(ownerId);
     }
 
     /// @inheritdoc IMultiOwnableSmartAccount
     function removeOwner(bytes32 ownerId) external onlySelf {
         require(isOwner(ownerId), "MOSA:NOT_OWNER");
+
+        address smartAccountRegistry = IBeaconProxyFactory(getFactory()).smartAccountRegistry();
+        ISmartAccountRegistry(smartAccountRegistry).unregisterSmartAccount(ownerId);
 
         _getMultiOwnableSmartAccountStorage().owners.remove(ownerId);
 

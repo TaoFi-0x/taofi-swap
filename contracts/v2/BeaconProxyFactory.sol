@@ -9,27 +9,40 @@ import {IBeaconProxyFactory} from "../interfaces/IBeaconProxyFactory.sol";
 import {MultiOwnableSmartAccount} from "./MultiOwnableSmartAccount.sol";
 
 contract BeaconProxyFactory is UpgradeableBeacon, IBeaconProxyFactory {
-    uint256 public count;
+    address public smartAccountRegistry;
 
-    constructor(address _implementation, address _owner) UpgradeableBeacon(_implementation, _owner) {}
+    constructor(address _implementation, address _owner, address _smartAccountRegistry)
+        UpgradeableBeacon(_implementation, _owner)
+    {
+        smartAccountRegistry = _smartAccountRegistry;
+    }
 
-    function getNextProxyAddress(bytes32 initialOwner) external view returns (address proxy) {
+    /// @inheritdoc IBeaconProxyFactory
+    function getNextProxyAddress(bytes32[] memory initialOwners, bytes32 salt, address sender)
+        external
+        view
+        returns (address proxy)
+    {
+        salt = keccak256(abi.encode(salt, sender));
+
         address beacon = address(this);
-        bytes32 salt = keccak256(abi.encode(initialOwner, count));
-        bytes memory initialize = abi.encodeWithSelector(MultiOwnableSmartAccount.initialize.selector, initialOwner);
+        bytes memory initialize =
+            abi.encodeWithSelector(MultiOwnableSmartAccount.initialize.selector, beacon, initialOwners);
         bytes memory bytecode = abi.encodePacked(type(BeaconProxy).creationCode, abi.encode(beacon, initialize));
         return Create2.computeAddress(salt, keccak256(bytecode), address(this));
     }
 
-    function createProxy(bytes32 initialOwner) external returns (address proxy) {
+    /// @inheritdoc IBeaconProxyFactory
+    function createProxy(bytes32[] memory initialOwners, bytes32 salt) external returns (address proxy) {
         address beacon = address(this);
-        bytes32 salt = keccak256(abi.encode(initialOwner, count));
-        bytes memory initialize = abi.encodeWithSelector(MultiOwnableSmartAccount.initialize.selector, initialOwner);
+
+        bytes memory initialize =
+            abi.encodeWithSelector(MultiOwnableSmartAccount.initialize.selector, beacon, initialOwners);
         bytes memory bytecode = abi.encodePacked(type(BeaconProxy).creationCode, abi.encode(beacon, initialize));
 
+        salt = keccak256(abi.encode(salt, msg.sender));
         proxy = Create2.deploy(0, salt, bytecode);
-        count++;
 
-        emit ProxyCreated(proxy, initialOwner);
+        emit ProxyCreated(proxy, initialOwners);
     }
 }

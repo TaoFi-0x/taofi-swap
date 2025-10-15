@@ -4,6 +4,9 @@ import { ethers } from "hardhat";
 
 describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
   let account: Contract;
+  let factory: Contract;
+  let registry: Contract;
+
   let deployer: Signer;
   let alice: Signer;
   let bob: Signer;
@@ -30,6 +33,35 @@ describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
     aliceId = toId(aliceAddr);
     bobId = toId(bobAddr);
 
+    // Deploy a MOSA implementation just to satisfy UpgradeableBeacon constructor
+    const MOSA_Impl = await ethers.getContractFactory(
+      "MultiOwnableSmartAccount",
+      deployer
+    );
+    const mosaImpl = await MOSA_Impl.deploy();
+    await mosaImpl.deployed();
+
+    // Deploy SmartAccountRegistry
+    const Registry = await ethers.getContractFactory(
+      "SmartAccountRegistry",
+      deployer
+    );
+    registry = await Registry.deploy();
+    await registry.deployed();
+
+    // Deploy BeaconProxyFactory (acts as IBeaconProxyFactory for get smartAccountRegistry)
+    const Factory = await ethers.getContractFactory(
+      "BeaconProxyFactory",
+      deployer
+    );
+    factory = await Factory.deploy(
+      mosaImpl.address, // implementation (must be a contract)
+      deployerAddr, // owner of beacon
+      registry.address // smartAccountRegistry
+    );
+    await factory.deployed();
+
+    // Now deploy the smart account used in "global" tests and initialize with factory + owners[]
     const MOSA = await ethers.getContractFactory(
       "MultiOwnableSmartAccount",
       deployer
@@ -37,14 +69,15 @@ describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
     account = await MOSA.deploy();
     await account.deployed();
 
-    // initialize now takes bytes32 ownerId and emits bytes32
-    await expect(account.initialize(deployerId))
+    await expect(account.initialize(factory.address, [deployerId]))
       .to.emit(account, "OwnerAdded")
       .withArgs(deployerId);
   });
 
   describe("initialize()", () => {
-    it("sets initial owner and emits event", async () => {
+    it("sets factory, initial owners and emits events", async () => {
+      expect(await account.getFactory()).to.equal(factory.address);
+
       const owners: string[] = await account.getOwners(); // bytes32[]
       expect(owners.length).to.equal(1);
       expect(owners[0]).to.equal(deployerId);
@@ -54,9 +87,9 @@ describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
     });
 
     it("reverts when called twice", async () => {
-      await expect(account.initialize(aliceId)).to.be.revertedWith(
-        "InvalidInitialization"
-      );
+      await expect(
+        account.initialize(factory.address, [aliceId])
+      ).to.be.revertedWith("InvalidInitialization");
     });
   });
 
@@ -111,7 +144,7 @@ describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
     });
   });
 
-  describe("owner management via self-call (executeCall)", () => {
+  describe("owner management via self-call (executeCall) + registry integration", () => {
     let fresh: Contract;
 
     beforeEach(async () => {
@@ -121,10 +154,10 @@ describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
       );
       fresh = await MOSA.deploy();
       await fresh.deployed();
-      await fresh.initialize(deployerId);
+      await fresh.initialize(factory.address, [deployerId]);
     });
 
-    it("adds a new owner (alice) via self-call and emits OwnerAdded", async () => {
+    it("adds a new owner (alice) via self-call, emits OwnerAdded and registers in registry", async () => {
       const addAlice = fresh.interface.encodeFunctionData("addOwner(bytes32)", [
         aliceId,
       ]);
@@ -137,6 +170,10 @@ describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
 
       expect(await fresh.isOwner(aliceId)).to.equal(true);
 
+      // Check registry mutation
+      const registered = await registry.getSmartAccounts(aliceId);
+      expect(registered).to.include(fresh.address);
+
       const owners: string[] = await fresh.getOwners(); // bytes32[]
       expect(owners).to.include(deployerId);
       expect(owners).to.include(aliceId);
@@ -146,7 +183,6 @@ describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
       const addAlice = fresh.interface.encodeFunctionData("addOwner(bytes32)", [
         aliceId,
       ]);
-
       await fresh.connect(deployer).executeCall(fresh.address, 0, addAlice);
       expect(await fresh.isOwner(aliceId)).to.equal(true);
 
@@ -168,20 +204,20 @@ describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
       ).to.be.revertedWith("MOSA:NOT_OWNER");
     });
 
-    it("removes an existing owner (alice) via self-call and emits OwnerRemoved", async () => {
+    it("removes an existing owner (alice) via self-call, emits OwnerRemoved and unregisters in registry", async () => {
+      // add first
       const addAlice = fresh.interface.encodeFunctionData("addOwner(bytes32)", [
         aliceId,
       ]);
+      await fresh.connect(deployer).executeCall(fresh.address, 0, addAlice);
+      expect(await fresh.isOwner(aliceId)).to.equal(true);
+
+      // now remove
       const removeAlice = fresh.interface.encodeFunctionData(
         "removeOwner(bytes32)",
         [aliceId]
       );
 
-      // add first
-      await fresh.connect(deployer).executeCall(fresh.address, 0, addAlice);
-      expect(await fresh.isOwner(aliceId)).to.equal(true);
-
-      // remove
       await expect(
         fresh.connect(deployer).executeCall(fresh.address, 0, removeAlice)
       )
@@ -189,7 +225,10 @@ describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
         .withArgs(aliceId);
 
       expect(await fresh.isOwner(aliceId)).to.equal(false);
-      expect(await fresh.isOwner(deployerId)).to.equal(true);
+
+      // registry should no longer include fresh for aliceId
+      const registered = await registry.getSmartAccounts(aliceId);
+      expect(registered).to.not.include(fresh.address);
     });
   });
 
@@ -237,7 +276,7 @@ describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
       );
       fresh = await MOSA.deploy();
       await fresh.deployed();
-      await fresh.initialize(deployerId);
+      await fresh.initialize(factory.address, [deployerId]);
     });
 
     it("executes addOwner via valid EIP-712 signature and bumps nonce", async () => {
@@ -289,10 +328,13 @@ describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
 
       expect(await fresh.getNonce(deployerId)).to.equal(nonce + 1);
       expect(await fresh.isOwner(aliceId)).to.equal(true);
+
+      // registry updated as well (since addOwner self-call does it internally)
+      const registered = await registry.getSmartAccounts(aliceId);
+      expect(registered).to.include(fresh.address);
     });
 
     it("sends ETH out from the smart account via signed execute (value transfer, empty calldata)", async () => {
-      // fund the smart account with 1 ETH
       await (deployer as any).sendTransaction({
         to: fresh.address,
         value: ethers.utils.parseEther("1"),
@@ -303,7 +345,7 @@ describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
 
       const namespace = 1;
       const managerId = deployerId;
-      const target = recipient; // EOA
+      const target = recipient;
       const value = sendAmount;
       const calldata = "0x";
       const dataHash = ethers.utils.keccak256(calldata);
@@ -446,7 +488,7 @@ describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
     });
 
     it("reverts with NS_UNSUPPORTED for wrong namespace", async () => {
-      const namespace = 2; // unsupported
+      const namespace = 2; // unsupported in current implementation
       const managerId = deployerId;
       const target = fresh.address;
       const value = 0;
@@ -466,7 +508,7 @@ describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
         verifyingContract: fresh.address,
       };
 
-      const sig = await signExecute(deployer, domain, {
+      const sig = await (deployer as any)._signTypedData(domain, TYPES, {
         namespace,
         managerId,
         target,
@@ -511,7 +553,7 @@ describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
         verifyingContract: fresh.address,
       };
 
-      const sig = await signExecute(bob, domain, {
+      const sig = await (bob as any)._signTypedData(domain, TYPES, {
         namespace,
         managerId,
         target,
@@ -556,7 +598,7 @@ describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
         verifyingContract: fresh.address,
       };
 
-      const sig = await signExecute(alice, domain, {
+      const sig = await (alice as any)._signTypedData(domain, TYPES, {
         namespace,
         managerId,
         target,

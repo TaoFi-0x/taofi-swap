@@ -11,6 +11,10 @@ interface IMultiOwnableSmartAccount {
     /// @param ownerId The bytes32 owner identifier that was removed.
     event OwnerRemoved(bytes32 indexed ownerId);
 
+    /// @notice Returns the address of the factory.
+    /// @return factory The address of the factory.
+    function getFactory() external view returns (address factory);
+
     /// @notice The set of owners (as bytes32 identifiers).
     /// @return owners The set of owners.
     function getOwners() external view returns (bytes32[] memory owners);
