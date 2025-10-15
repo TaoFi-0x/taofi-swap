@@ -1,5 +1,5 @@
 {
-  "address": "0x7d2423329dE39407568f9af9BFE50691fa1959C9",
+  "address": "0x36Bd88BC3228b83425826C0faB8afA1c5D135aaF",
   "abi": [
     {
       "inputs": [
@@ -11,6 +11,11 @@
         {
           "internalType": "address",
           "name": "_owner",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_smartAccountRegistry",
           "type": "address"
         }
       ],
@@ -106,9 +111,9 @@
         },
         {
           "indexed": true,
-          "internalType": "bytes32",
-          "name": "initialOwner",
-          "type": "bytes32"
+          "internalType": "bytes32[]",
+          "name": "initialOwners",
+          "type": "bytes32[]"
         }
       ],
       "name": "ProxyCreated",
@@ -128,23 +133,15 @@
       "type": "event"
     },
     {
-      "inputs": [],
-      "name": "count",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
       "inputs": [
         {
+          "internalType": "bytes32[]",
+          "name": "initialOwners",
+          "type": "bytes32[]"
+        },
+        {
           "internalType": "bytes32",
-          "name": "initialOwner",
+          "name": "salt",
           "type": "bytes32"
         }
       ],
@@ -162,9 +159,19 @@
     {
       "inputs": [
         {
+          "internalType": "bytes32[]",
+          "name": "initialOwners",
+          "type": "bytes32[]"
+        },
+        {
           "internalType": "bytes32",
-          "name": "initialOwner",
+          "name": "salt",
           "type": "bytes32"
+        },
+        {
+          "internalType": "address",
+          "name": "sender",
+          "type": "address"
         }
       ],
       "name": "getNextProxyAddress",
@@ -212,6 +219,19 @@
       "type": "function"
     },
     {
+      "inputs": [],
+      "name": "smartAccountRegistry",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [
         {
           "internalType": "address",
@@ -238,5 +258,5 @@
       "type": "function"
     }
   ],
-  "numDeployments": 1
+  "numDeployments": 2
 }

@@ -1,5 +1,5 @@
 {
-  "address": "0x93396ac6eFeBb8012F7A670b13eC8Cc827f206cD",
+  "address": "0xA142a6C6c5cd441CFdB08BD4A739c8D225E9623E",
   "abi": [
     {
       "inputs": [
@@ -39,21 +39,50 @@
     {
       "inputs": [
         {
-          "internalType": "bytes32",
-          "name": "initialOwner",
-          "type": "bytes32"
+          "internalType": "bytes32[]",
+          "name": "initialOwners",
+          "type": "bytes32[]"
         },
         {
           "internalType": "address[]",
           "name": "alphaTokens",
           "type": "address[]"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "salt",
+          "type": "bytes32"
         }
       ],
       "name": "createAccountAndMigrate",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32[]",
+          "name": "initialOwners",
+          "type": "bytes32[]"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "salt",
+          "type": "bytes32"
+        }
+      ],
+      "name": "getNextAccountAddress",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
     }
   ],
-  "numDeployments": 1
+  "numDeployments": 2
 }
