@@ -60,6 +60,8 @@ const NETWORKS_RPC_URL = {
   op: `https://opt-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`,
 };
 
+const ENABLE_FORK = process.env.ENABLE_FORK === "1";
+
 module.exports = {
   paths: {
     sources: "./contracts",
@@ -86,11 +88,13 @@ module.exports = {
       gas: 30000000,
       allowUnlimitedContractSize: true,
       timeout: 1200000,
-      forking: {
-        url: NETWORKS_RPC_URL[FORK],
-        blockNumber: BLOCK_TO_FORK[FORK],
-      },
-      accounts: { mnemonic: MNEMONIC },
+      forking: ENABLE_FORK
+        ? {
+            url: NETWORKS_RPC_URL[FORK],
+            blockNumber: BLOCK_TO_FORK[FORK],
+          }
+        : undefined,
+      accounts: { count: 20 },
       chains: {
         964: {
           hardforkHistory: {
@@ -161,7 +165,7 @@ module.exports = {
   solidity: {
     compilers: [
       {
-        version: "0.8.21",
+        version: "0.8.22",
         settings: {
           // viaIR: true,
           optimizer: { enabled: true, runs: 1 },
