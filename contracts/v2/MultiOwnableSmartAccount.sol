@@ -64,9 +64,13 @@ contract MultiOwnableSmartAccount is IMultiOwnableSmartAccount, Initializable {
         MultiOwnableSmartAccountStorage storage $ = _getMultiOwnableSmartAccountStorage();
         $.factory = factory;
 
+        address smartAccountRegistry = IBeaconProxyFactory(factory).smartAccountRegistry();
+
         for (uint256 i = 0; i < initialOwnerIds.length; i++) {
             $.owners.add(initialOwnerIds[i]);
             emit OwnerAdded(initialOwnerIds[i]);
+
+            ISmartAccountRegistry(smartAccountRegistry).registerSmartAccount(initialOwnerIds[i]);
         }
     }
 
