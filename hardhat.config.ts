@@ -39,7 +39,7 @@ function getRemappings() {
 const BLOCK_TO_FORK = {
   main: 22332295,
   base: 31669450,
-  bittensor: 5864065,
+  bittensor: 6649039,
   btlocal: parseInt(BTLOCAL_RPC_URL),
   mode: 7464010,
   linea: 4579590,
@@ -122,7 +122,7 @@ module.exports = {
       accounts: PK ? [PK] : { mnemonic: MNEMONIC },
     },
     bittensor: {
-      url: process.env.BTLOCAL_RPC_URL || `https://lite.chain.opentensor.ai`,
+      url: process.env.BTLOCAL_RPC_URL || `https://lite.sub.latent.to/`,
       gas: "auto",
       chainId: 964,
       accounts: PK ? [PK] : { mnemonic: MNEMONIC },

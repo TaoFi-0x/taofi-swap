@@ -1,5 +1,5 @@
 import { ethers } from 'hardhat';
-import { APXETH, CRV, CRVUSD0USD0PP, DAI, EBTC, EETHPendlePT, FDAI, FRAX, FUSDC, FUSDT, FXUSD, GHO, LINEA_EZETH, LINEA_USDC, LINEA_USDT, LINEA_WETH, MODE_EZETH, MODE_MODE, MODE_STONE, MODE_USDC, MODE_USDT, MODE_WEETH, MODE_WETH, MODE_WRSETH, OP_EZETH, OP_WETH, PXETH, RSETH, RSETHPendlePT, RSWETH, RSWETHPendlePT, SEI_ISEI, SEI_STONE, SEI_USDC, SEI_WETH, SEI_WSEI, SFRAX, STETH, STRDY, STTAO, SWBTC, SWETH, SWETHPendleLPT26, SWETHPendleLPT27, TBTC, TurboSTETH, TurboSWETH, USD0PP, USDC, USDE, USDT, USDY, WBTC, WEETH, WETH, YVFRAXCRVUSD, YVUSDCCRVUSD, YVUSDTCRVUSD, YieldETH, crvUSD, mkUSD } from './constants';
+import { APXETH, BIT_USDC, BIT_WTAO, CRV, CRVUSD0USD0PP, DAI, EBTC, EETHPendlePT, FDAI, FRAX, FUSDC, FUSDT, FXUSD, GHO, LINEA_EZETH, LINEA_USDC, LINEA_USDT, LINEA_WETH, MODE_EZETH, MODE_MODE, MODE_STONE, MODE_USDC, MODE_USDT, MODE_WEETH, MODE_WETH, MODE_WRSETH, OP_EZETH, OP_WETH, PXETH, RSETH, RSETHPendlePT, RSWETH, RSWETHPendlePT, SEI_ISEI, SEI_STONE, SEI_USDC, SEI_WETH, SEI_WSEI, SFRAX, STETH, STRDY, STTAO, SWBTC, SWETH, SWETHPendleLPT26, SWETHPendleLPT27, TBTC, TurboSTETH, TurboSWETH, USD0PP, USDC, USDE, USDT, USDY, WBTC, WEETH, WETH, YVFRAXCRVUSD, YVUSDCCRVUSD, YVUSDTCRVUSD, YieldETH, crvUSD, mkUSD } from './constants';
 import { impersonateAccountsHardhat, waitForTx } from './misc-utils';
 import { BigNumberish } from 'ethers';
 import { parseEther } from 'ethers/lib/utils';
@@ -344,6 +344,23 @@ const OP_TOKEN_INFO: {
   },
 ]
 
+const BIT_TOKEN_INFO: {
+  symbol: string;
+  address: string;
+  owner: string;
+}[] = [
+  {
+    "symbol": 'WTAO',
+    "address": BIT_WTAO,
+    "owner": '0xd5B27C42f74518635AE29b16ea488aD4fdb9bE24',
+  },
+  {
+    "symbol": 'USDC',
+    "address": BIT_USDC,
+    "owner": '0xefC662Fe5c73E58BdDfD97015a21726D6423b088',
+  },
+]
+
 export async function mint(reserveSymbol: string, amount: BigNumberish, user: string, network: string = 'main') {
   let token;
 
@@ -357,10 +374,12 @@ export async function mint(reserveSymbol: string, amount: BigNumberish, user: st
     token = SEI_TOKEN_INFO.find((ele) => ele.symbol.toUpperCase() === reserveSymbol.toUpperCase());
   } else if (network === 'op') {
     token = OP_TOKEN_INFO.find((ele) => ele.symbol.toUpperCase() === reserveSymbol.toUpperCase());
+  } else if (network === 'bittensor') {
+    token = BIT_TOKEN_INFO.find((ele) => ele.symbol.toUpperCase() === reserveSymbol.toUpperCase());
   }
 
   if (token) {
-    const asset = await ethers.getContractAt('ERC20', token.address);
+    const asset = await ethers.getContractAt('IERC20', token.address);
     await impersonateAccountsHardhat([token.owner]);
     const signer = await ethers.provider.getSigner(token.owner);
     const ethBalance = await ethers.provider.getBalance(token.owner);
