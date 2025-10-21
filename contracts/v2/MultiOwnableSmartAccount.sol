@@ -4,7 +4,6 @@ pragma solidity ^0.8.22;
 import {Initializable} from "oz5/proxy/utils/Initializable.sol";
 import {EnumerableSet} from "oz5/utils/structs/EnumerableSet.sol";
 import {ECDSA} from "oz5/utils/cryptography/ECDSA.sol";
-
 import {IMultiOwnableSmartAccount} from "../interfaces/IMultiOwnableSmartAccount.sol";
 import {IBeaconProxyFactory} from "../interfaces/IBeaconProxyFactory.sol";
 import {ISmartAccountRegistry} from "../interfaces/ISmartAccountRegistry.sol";
@@ -17,13 +16,11 @@ contract MultiOwnableSmartAccount is IMultiOwnableSmartAccount, Initializable {
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
 
     bytes32 public constant NAME_HASH = keccak256("MultiOwnableSmartAccount");
-
     bytes32 public constant VERSION_HASH = keccak256("1");
 
     bytes32 public constant TYPEHASH_EXECUTE = keccak256(
         "ExecuteWithSig(uint8 namespace,bytes32 managerId,address target,uint256 value,bytes32 dataHash,uint256 nonce,uint256 deadline)"
     );
-
     bytes32 public constant TYPEHASH_BATCH_EXECUTE = keccak256(
         "BatchExecuteWithSig(uint8 namespace,bytes32 managerId,bytes32 targetsHash,bytes32 valuesHash,bytes32 payloadsHash,uint256 nonce,uint256 deadline)"
     );
@@ -40,7 +37,6 @@ contract MultiOwnableSmartAccount is IMultiOwnableSmartAccount, Initializable {
     function _getMultiOwnableSmartAccountStorage() internal pure returns (MultiOwnableSmartAccountStorage storage $) {
         bytes32 slot = keccak256(abi.encode(uint256(keccak256("taofi.contracts.storage.MultiOwnableSmartAccount")) - 1))
             & ~bytes32(uint256(0xff));
-
         assembly {
             $.slot := slot
         }
@@ -48,30 +44,18 @@ contract MultiOwnableSmartAccount is IMultiOwnableSmartAccount, Initializable {
 
     modifier onlySelf() {
         require(msg.sender == address(this), "MOSA:NOT_SELF");
-
         _;
     }
 
     modifier onlyOwner() {
         require(isOwner(_toOwnerId(msg.sender)), "MOSA:NOT_OWNER");
-
         _;
     }
 
     receive() external payable {}
 
-    function initialize(address factory, bytes32[] memory initialOwnerIds) external initializer {
-        MultiOwnableSmartAccountStorage storage $ = _getMultiOwnableSmartAccountStorage();
-        $.factory = factory;
-
-        address smartAccountRegistry = IBeaconProxyFactory(factory).smartAccountRegistry();
-
-        for (uint256 i = 0; i < initialOwnerIds.length; i++) {
-            $.owners.add(initialOwnerIds[i]);
-            emit OwnerAdded(initialOwnerIds[i]);
-
-            ISmartAccountRegistry(smartAccountRegistry).registerSmartAccount(initialOwnerIds[i]);
-        }
+    function initialize(address factory) external initializer {
+        _getMultiOwnableSmartAccountStorage().factory = factory;
     }
 
     /// @inheritdoc IMultiOwnableSmartAccount
@@ -97,6 +81,21 @@ contract MultiOwnableSmartAccount is IMultiOwnableSmartAccount, Initializable {
     /// @inheritdoc IMultiOwnableSmartAccount
     function domainSeparatorV4() public view returns (bytes32) {
         return keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, block.chainid, address(this)));
+    }
+
+    /// @inheritdoc IMultiOwnableSmartAccount
+    function setInitialOwners(bytes32[] calldata initialOwnerIds) external {
+        require(getOwners().length == 0, "MOSA:ALREADY_INITIALIZED");
+
+        MultiOwnableSmartAccountStorage storage $ = _getMultiOwnableSmartAccountStorage();
+        address smartAccountRegistry = IBeaconProxyFactory($.factory).smartAccountRegistry();
+
+        for (uint256 i = 0; i < initialOwnerIds.length; i++) {
+            $.owners.add(initialOwnerIds[i]);
+            emit OwnerAdded(initialOwnerIds[i]);
+
+            ISmartAccountRegistry(smartAccountRegistry).registerSmartAccount(initialOwnerIds[i]);
+        }
     }
 
     /// @inheritdoc IMultiOwnableSmartAccount
@@ -165,10 +164,10 @@ contract MultiOwnableSmartAccount is IMultiOwnableSmartAccount, Initializable {
 
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparatorV4(), structHash));
         address signer = ECDSA.recover(digest, signature);
+
         require(signer == expectedSigner, "MOSA:BAD_SIG");
 
         $.nonces[managerId]++;
-
         _execute(target, value, data);
     }
 
@@ -207,6 +206,7 @@ contract MultiOwnableSmartAccount is IMultiOwnableSmartAccount, Initializable {
 
             bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparatorV4(), structHash));
             address signer = ECDSA.recover(digest, signature);
+
             require(signer == expectedSigner, "MOSA:BAD_SIG");
         }
 
@@ -223,9 +223,10 @@ contract MultiOwnableSmartAccount is IMultiOwnableSmartAccount, Initializable {
     /// @param data The data to send with the call.
     function _execute(address target, uint256 value, bytes memory data) internal {
         (bool success, bytes memory ret) = target.call{value: value}(data);
+
         if (!success) {
             assembly {
-                revert(add(ret, 0x20), mload(ret)) // bubble inner reason
+                revert(add(ret, 0x20), mload(ret))
             }
         }
     }
@@ -235,9 +236,11 @@ contract MultiOwnableSmartAccount is IMultiOwnableSmartAccount, Initializable {
     /// @return The hash of the array of bytes.
     function _hashBytesArray(bytes[] calldata payloads) internal pure returns (bytes32) {
         bytes32[] memory hashes = new bytes32[](payloads.length);
+
         for (uint256 i = 0; i < payloads.length; i++) {
             hashes[i] = keccak256(payloads[i]);
         }
+
         return keccak256(abi.encodePacked(hashes));
     }
 
