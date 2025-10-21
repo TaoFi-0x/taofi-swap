@@ -1,5 +1,5 @@
 {
-  "address": "0x8980Bd75d212A0B012281154D773acBDDa79c873",
+  "address": "0x196fD1ebc841691617102fD65c86614Db1d1891b",
   "abi": [
     {
       "inputs": [
@@ -62,11 +62,6 @@
     {
       "inputs": [
         {
-          "internalType": "bytes32[]",
-          "name": "initialOwners",
-          "type": "bytes32[]"
-        },
-        {
           "internalType": "bytes32",
           "name": "salt",
           "type": "bytes32"
@@ -84,5 +79,5 @@
       "type": "function"
     }
   ],
-  "numDeployments": 5
+  "numDeployments": 6
 }
