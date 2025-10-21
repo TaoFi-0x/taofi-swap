@@ -54,7 +54,7 @@ describe("AlphaTokenMigrator (unit, local)", function () {
     );
     factory = await Factory.deploy(
       impl.address,
-      deployerAddr,
+      await deployer.getAddress(),
       registry.address
     );
     await factory.deployed();
@@ -79,7 +79,7 @@ describe("AlphaTokenMigrator (unit, local)", function () {
   async function mintToAlice() {
     await TKA.mint(aliceAddr, ethers.utils.parseEther("100"));
     await TKB.mint(aliceAddr, ethers.utils.parseEther("42"));
-    // TKZ remains 0
+    // TKZ stays 0
   }
 
   beforeEach(async () => {
@@ -93,7 +93,7 @@ describe("AlphaTokenMigrator (unit, local)", function () {
     const owners = [toId(aliceAddr)];
     const salt = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("migrate-1"));
 
-    // approvals for both tokens
+    // approvals for both tokens (zero-balance TKZ needs none)
     await TKA.connect(alice).approve(
       migrator.address,
       ethers.constants.MaxUint256
@@ -102,12 +102,9 @@ describe("AlphaTokenMigrator (unit, local)", function () {
       migrator.address,
       ethers.constants.MaxUint256
     );
-    // TKZ = 0 balance -> no approval needed
 
-    // predict with Alice as caller (migrator binds caller into salt; factory binds sender = migrator)
-    const predicted = await migrator
-      .connect(alice)
-      .getNextAccountAddress(owners, salt);
+    // prediction depends on caller (EOA) because migrator pre-binds salt with msg.sender
+    const predicted = await migrator.connect(alice).getNextAccountAddress(salt);
 
     // snapshot before
     const aBalA_before = await TKA.balanceOf(aliceAddr);
@@ -115,7 +112,7 @@ describe("AlphaTokenMigrator (unit, local)", function () {
     const aBalZ_before = await TKZ.balanceOf(aliceAddr);
     expect(aBalZ_before).to.equal(0);
 
-    // create + migrate (no event expected in your current contract)
+    // create + migrate (no custom event expected)
     await migrator
       .connect(alice)
       .createAccountAndMigrate(
@@ -128,7 +125,7 @@ describe("AlphaTokenMigrator (unit, local)", function () {
     const code = await ethers.provider.getCode(predicted);
     expect(code && code !== "0x").to.equal(true);
 
-    // attach and verify
+    // attach and verify factory + owners
     const proxy = await ethers.getContractAt(
       "MultiOwnableSmartAccount",
       predicted
@@ -138,7 +135,7 @@ describe("AlphaTokenMigrator (unit, local)", function () {
     const ownersAfter: string[] = await proxy.getOwners();
     expect(ownersAfter).to.deep.equal(owners);
 
-    // balances moved
+    // balances moved atomically
     expect(await TKA.balanceOf(predicted)).to.equal(aBalA_before);
     expect(await TKB.balanceOf(predicted)).to.equal(aBalB_before);
     expect(await TKZ.balanceOf(predicted)).to.equal(0);
@@ -148,19 +145,15 @@ describe("AlphaTokenMigrator (unit, local)", function () {
     expect(await TKZ.balanceOf(aliceAddr)).to.equal(0);
   });
 
-  it("prediction depends on caller (Alice vs Bob) with same salt/owners", async () => {
+  it("prediction depends on caller (Alice vs Bob) with same salt", async () => {
     const owners = [toId(aliceAddr)];
     const salt = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("migrate-2"));
 
-    const pAlice = await migrator
-      .connect(alice)
-      .getNextAccountAddress(owners, salt);
-    const pBob = await migrator
-      .connect(bob)
-      .getNextAccountAddress(owners, salt);
+    const pAlice = await migrator.connect(alice).getNextAccountAddress(salt);
+    const pBob = await migrator.connect(bob).getNextAccountAddress(salt);
     expect(pAlice).to.not.equal(pBob);
 
-    // deploy for Bob to confirm pBob is correct
+    // deploy for Bob to confirm pBob is correct (no tokens listed)
     await (
       await migrator.connect(bob).createAccountAndMigrate(owners, [], salt)
     ).wait();
@@ -204,9 +197,7 @@ describe("AlphaTokenMigrator (unit, local)", function () {
     const owners = [toId(aliceAddr)];
     const salt = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("zero-ok"));
 
-    const predicted = await migrator
-      .connect(alice)
-      .getNextAccountAddress(owners, salt);
+    const predicted = await migrator.connect(alice).getNextAccountAddress(salt);
 
     await migrator
       .connect(alice)
