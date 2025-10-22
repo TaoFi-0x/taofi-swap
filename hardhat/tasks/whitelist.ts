@@ -35,7 +35,12 @@ task("whitelist-remoteCall", "whitelists remote call in wrapper contract").setAc
       //   await tx.wait(1);
       // }
 
+      // //AlphaTokenMigrator.createAccountAndMigrate()
       // const tx = await wrapperContract.connect(signers[0]).setAllowedRemoteCall(ethers.utils.hexZeroPad("0x196fD1ebc841691617102fD65c86614Db1d1891b", 32), "0xa3b8de27", true)
+      // await tx.wait(1);
+
+      // //SmartAccountAddress.executeCall()
+      // const tx = await wrapperContract.connect(signers[0]).setAllowedRemoteCall(ethers.utils.hexZeroPad("0xA7701f6305063FE2a77B25f2A58Cc0f61d074688", 32), "0x9e5d4c49", true)
       // await tx.wait(1);
 
     } catch (err) {
