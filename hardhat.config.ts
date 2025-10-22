@@ -39,7 +39,7 @@ function getRemappings() {
 const BLOCK_TO_FORK = {
   main: 22332295,
   base: 31669450,
-  bittensor: 6649039,
+  bittensor: 6706995,
   btlocal: parseInt(BTLOCAL_RPC_URL),
   mode: 7464010,
   linea: 4579590,

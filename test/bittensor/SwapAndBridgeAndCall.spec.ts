@@ -461,7 +461,31 @@ const migrationURL = "https://taofi-api.web.app/getMigrationCall";
 describe('SwapAndBridgeAndCallV2', () => {
     it('Migration', async () => {
         const { deployer } = await getNamedAccounts();
-        const { rawTx } = deployments;
+        const [deployerSigner ] = await ethers.getSigners();
+        const { rawTx, get } = deployments;
+
+        // const AlphaTokenMigrator = await ethers.getContractAt('AlphaTokenMigrator', (await get('AlphaTokenMigrator')).address);
+        // const Token = await ethers.getContractAt('ERC20', "0xbef18c0edaae34defb5955f51d9322eea897321e");
+        // await impersonateAccountsHardhat(["0x3740eb7e9bae273ba2088f9688395a666c945082"]);
+        // const signer = await ethers.provider.getSigner("0x3740eb7e9bae273ba2088f9688395a666c945082");
+        // console.log(await Token.allowance("0x3740eb7e9bae273ba2088f9688395a666c945082", AlphaTokenMigrator.address));
+        // await deployerSigner.sendTransaction({ value: parseEther('1'), to: "0x3740eb7e9bae273ba2088f9688395a666c945082" });
+        // await signer.sendTransaction(
+        //     {
+        //         value: "0",
+        //         to: "0xca11bde05977b3631167028862be2a173976ca11",
+        //         data: "0x252dba42000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000020000000000000000000000000bef18c0edaae34defb5955f51d9322eea897321e00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000044095ea7b3000000000000000000000000Cf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000000000000000000000000000000000000000000000000000",
+        //     }
+        // );
+        // console.log(await Token.allowance("0x3740eb7e9bae273ba2088f9688395a666c945082", AlphaTokenMigrator.address));
+        // await signer.sendTransaction(
+        //     {
+        //         value: "0",
+        //         to: "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+        //         data: "0xa3b8de27000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000068f85f9400000000000000000000000000000000000000000000000000000000000000020000000000000000000000002532c3d363306fa6d625e4cbad996bcf534e81540000000000000000000000003740eb7e9bae273ba2088f9688395a666c9450820000000000000000000000000000000000000000000000000000000000000001000000000000000000000000bef18c0edaae34defb5955f51d9322eea897321e",
+        //     }
+        // );
+
 
         const postData = {
             sender: "0x2532c3d363306fa6d625e4cbad996bcf534e8154",
