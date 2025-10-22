@@ -70,6 +70,7 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
 
   console.log(`AlphaTokenMigrator deployed to ${alphaTokenMigrator.address}`);
 };
+
 export default func;
 
 func.skip = async (hre: HardhatRuntimeEnvironment) => {

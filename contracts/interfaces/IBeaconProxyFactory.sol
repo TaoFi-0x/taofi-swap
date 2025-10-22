@@ -8,14 +8,10 @@ interface IBeaconProxyFactory {
     event ProxyCreated(address indexed proxy, bytes32[] indexed initialOwners);
 
     /// @notice Computes the address of a BeaconProxy before deployment
-    /// @param initialOwners The address of the initial owners
     /// @param salt The salt for the BeaconProxy
     /// @param sender The address of the sender
     /// @return proxy The predicted address of the BeaconProxy
-    function getNextProxyAddress(bytes32[] memory initialOwners, bytes32 salt, address sender)
-        external
-        view
-        returns (address proxy);
+    function getNextProxyAddress(bytes32 salt, address sender) external view returns (address proxy);
 
     /// @notice Returns the address of the smart account registry
     /// @return smartAccountRegistry The address of the smart account registry

@@ -49,19 +49,20 @@ describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
     registry = await Registry.deploy();
     await registry.deployed();
 
-    // Deploy BeaconProxyFactory (acts as IBeaconProxyFactory for get smartAccountRegistry)
+    // Deploy BeaconProxyFactory
     const Factory = await ethers.getContractFactory(
       "BeaconProxyFactory",
       deployer
     );
     factory = await Factory.deploy(
-      mosaImpl.address, // implementation (must be a contract)
+      mosaImpl.address, // implementation
       deployerAddr, // owner of beacon
       registry.address // smartAccountRegistry
     );
     await factory.deployed();
 
-    // Now deploy the smart account used in "global" tests and initialize with factory + owners[]
+    // Deploy a raw MOSA instance for unit tests and initialize(factory),
+    // then setInitialOwners([deployerId]) to mirror factory flow.
     const MOSA = await ethers.getContractFactory(
       "MultiOwnableSmartAccount",
       deployer
@@ -69,13 +70,16 @@ describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
     account = await MOSA.deploy();
     await account.deployed();
 
-    await expect(account.initialize(factory.address, [deployerId]))
-      .to.emit(account, "OwnerAdded")
-      .withArgs(deployerId);
+    await account.initialize(factory.address);
+    await account.setInitialOwners([deployerId]);
+
+    // sanity: registry should already know about (deployerId -> account)
+    const regAfter = await registry.getSmartAccounts(deployerId);
+    expect(regAfter).to.include(account.address);
   });
 
   describe("initialize()", () => {
-    it("sets factory, initial owners and emits events", async () => {
+    it("sets factory; owners come from setInitialOwners; registry updated", async () => {
       expect(await account.getFactory()).to.equal(factory.address);
 
       const owners: string[] = await account.getOwners(); // bytes32[]
@@ -84,12 +88,22 @@ describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
 
       expect(await account.isOwner(deployerId)).to.equal(true);
       expect(await account.isOwner(aliceId)).to.equal(false);
+
+      // registry should include this smart account for deployerId
+      const registered = await registry.getSmartAccounts(deployerId);
+      expect(registered).to.include(account.address);
     });
 
-    it("reverts when called twice", async () => {
-      await expect(
-        account.initialize(factory.address, [aliceId])
-      ).to.be.revertedWith("InvalidInitialization");
+    it("reverts when initialize called twice", async () => {
+      await expect(account.initialize(factory.address)).to.be.revertedWith(
+        "InvalidInitialization"
+      );
+    });
+
+    it("reverts setInitialOwners if already initialized with owners", async () => {
+      await expect(account.setInitialOwners([aliceId])).to.be.revertedWith(
+        "MOSA:ALREADY_INITIALIZED"
+      );
     });
   });
 
@@ -154,7 +168,8 @@ describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
       );
       fresh = await MOSA.deploy();
       await fresh.deployed();
-      await fresh.initialize(factory.address, [deployerId]);
+      await fresh.initialize(factory.address);
+      await fresh.setInitialOwners([deployerId]);
     });
 
     it("adds a new owner (alice) via self-call, emits OwnerAdded and registers in registry", async () => {
@@ -276,7 +291,8 @@ describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
       );
       fresh = await MOSA.deploy();
       await fresh.deployed();
-      await fresh.initialize(factory.address, [deployerId]);
+      await fresh.initialize(factory.address);
+      await fresh.setInitialOwners([deployerId]);
     });
 
     it("executes addOwner via valid EIP-712 signature and bumps nonce", async () => {
@@ -488,7 +504,7 @@ describe("MultiOwnableSmartAccount (unit, local, no execution)", function () {
     });
 
     it("reverts with NS_UNSUPPORTED for wrong namespace", async () => {
-      const namespace = 2; // unsupported in current implementation
+      const namespace = 2; // unsupported
       const managerId = deployerId;
       const target = fresh.address;
       const value = 0;

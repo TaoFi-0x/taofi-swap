@@ -61,20 +61,17 @@ describe("BeaconProxyFactory (unit, local)", function () {
     expect(reg).to.equal(registry.address);
   });
 
-  it("predicts proxy address deterministically (salt bound to sender) and initializes owners+factory", async () => {
+  it("predicts proxy address deterministically (salt bound to sender) and initializes owners+factory+registry", async () => {
     const initialOwners = [toId(deployerAddr), toId(aliceAddr)];
     const salt = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("salt-one"));
 
-    // IMPORTANT: pass the SAME sender you will use for createProxy
-    const predicted = await factory.getNextProxyAddress(
-      initialOwners,
-      salt,
-      deployerAddr
-    );
+    // IMPORTANT: prediction depends only on salt+sender now
+    const predicted = await factory.getNextProxyAddress(salt, deployerAddr);
 
     // deploy from that sender
-    const tx = await factory.connect(deployer).createProxy(initialOwners, salt);
-    await tx.wait();
+    await (
+      await factory.connect(deployer).createProxy(initialOwners, salt)
+    ).wait();
 
     // code exists at predicted
     const code = await ethers.provider.getCode(predicted);
@@ -96,22 +93,22 @@ describe("BeaconProxyFactory (unit, local)", function () {
     expect(owners).to.include(initialOwners[0]);
     expect(owners).to.include(initialOwners[1]);
 
-    // nonces start at 0
-    expect(await proxy.getNonce(initialOwners[0])).to.equal(0);
-    expect(await proxy.getNonce(initialOwners[1])).to.equal(0);
+    // registry received registrations for each owner
+    const regA = await registry.getSmartAccounts(initialOwners[0]);
+    const regB = await registry.getSmartAccounts(initialOwners[1]);
+    expect(regA).to.include(predicted);
+    expect(regB).to.include(predicted);
   });
 
-  it("different sender -> different predicted address for the same salt+owners", async () => {
+  it("different sender -> different predicted address for the same salt", async () => {
     const initialOwners = [toId(deployerAddr)];
     const salt = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("salt-two"));
 
     const predictedFromDeployer = await factory.getNextProxyAddress(
-      initialOwners,
       salt,
       deployerAddr
     );
     const predictedFromAlice = await factory.getNextProxyAddress(
-      initialOwners,
       salt,
       aliceAddr
     );
@@ -126,12 +123,12 @@ describe("BeaconProxyFactory (unit, local)", function () {
     expect(codeAlice && codeAlice !== "0x").to.equal(true);
   });
 
-  it("same inputs (owners, salt, sender) -> same predicted address before deployment", async () => {
+  it("same inputs (salt, sender) -> same predicted address before deployment", async () => {
     const owners = [toId(bobAddr)];
     const salt = ethers.utils.keccak256(ethers.utils.randomBytes(32));
 
-    const p1 = await factory.getNextProxyAddress(owners, salt, bobAddr);
-    const p2 = await factory.getNextProxyAddress(owners, salt, bobAddr);
+    const p1 = await factory.getNextProxyAddress(salt, bobAddr);
+    const p2 = await factory.getNextProxyAddress(salt, bobAddr);
     expect(p1).to.equal(p2);
 
     // deploy from bob and verify code exists at that address
@@ -145,11 +142,7 @@ describe("BeaconProxyFactory (unit, local)", function () {
     const owners = [toId(deployerAddr)];
     const salt = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("salt-reg"));
 
-    const predicted = await factory.getNextProxyAddress(
-      owners,
-      salt,
-      deployerAddr
-    );
+    const predicted = await factory.getNextProxyAddress(salt, deployerAddr);
     await (await factory.connect(deployer).createProxy(owners, salt)).wait();
 
     const proxy = await ethers.getContractAt(
@@ -168,7 +161,7 @@ describe("BeaconProxyFactory (unit, local)", function () {
       .to.emit(proxy, "OwnerAdded")
       .withArgs(aliceId);
 
-    // registry reflects registration (SmartAccountRegistry.registerSmartAccount)
+    // registry reflects registration
     const registered = await registry.getSmartAccounts(aliceId);
     expect(registered).to.include(predicted);
   });
@@ -193,11 +186,7 @@ describe("BeaconProxyFactory (unit, local)", function () {
     const salt = ethers.utils.keccak256(
       ethers.utils.toUtf8Bytes("salt-after-upgrade")
     );
-    const predicted = await factory.getNextProxyAddress(
-      owners,
-      salt,
-      aliceAddr
-    );
+    const predicted = await factory.getNextProxyAddress(salt, aliceAddr);
 
     await (await factory.connect(alice).createProxy(owners, salt)).wait();
 
@@ -212,5 +201,11 @@ describe("BeaconProxyFactory (unit, local)", function () {
     expect(o.length).to.equal(2);
     expect(o).to.include(owners[0]);
     expect(o).to.include(owners[1]);
+
+    // registry has entries for both owners
+    const regA = await registry.getSmartAccounts(owners[0]);
+    const regB = await registry.getSmartAccounts(owners[1]);
+    expect(regA).to.include(predicted);
+    expect(regB).to.include(predicted);
   });
 });

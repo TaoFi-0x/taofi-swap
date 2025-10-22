@@ -33,6 +33,10 @@ interface IMultiOwnableSmartAccount {
     /// @return domainSeparator The domain separator for EIP-712.
     function domainSeparatorV4() external view returns (bytes32 domainSeparator);
 
+    /// @notice Sets the initial owners of the smart account.
+    /// @param initialOwnerIds The bytes32 owner identifiers to set as initial owners.
+    function setInitialOwners(bytes32[] memory initialOwnerIds) external;
+
     /// @notice Adds an owner to the smart account.
     /// @param ownerId The bytes32 owner identifier to add.
     function addOwner(bytes32 ownerId) external;
