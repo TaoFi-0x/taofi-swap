@@ -24,6 +24,7 @@ const TransferCallURL = "https://taofi-api.web.app/getTransferCall";
 const migrationURL = "https://taofi-api.web.app/getMigrationCall";
 const TransferCallV2URL = "https://taofi-api.web.app/getTransferCallV2";
 const callV2URL = "https://taofi-api.web.app/getBuyCallV2";
+const reverseCallV2URL = "https://taofi-api.web.app/getSellCallV2";
 
 // describe('SwapAndBridgeAndCall', () => {
 //   it('Swap, Bridge, Stake', async () => {
@@ -409,62 +410,62 @@ const callV2URL = "https://taofi-api.web.app/getBuyCallV2";
 //   });
 // });
 
-describe('SwapAndTransfer', () => {
-    it('Swap, Transfer', async () => {
-        const { deployer } = await getNamedAccounts();
-        const { rawTx } = deployments;
-        // const fromTokenAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";  //USDC (base)
-        // const fromDecimals = 6; // USDC decimals
-        // const fromAmount = "50000000"  // 50 USDC
-        const fromTokenAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";  //USDC (base)
-        const fromDecimals = 6; // USDC decimals
-        const fromAmount = "10000000"  // 10 USDC
+// describe('SwapAndTransfer', () => {
+//     it('Swap, Transfer', async () => {
+//         const { deployer } = await getNamedAccounts();
+//         const { rawTx } = deployments;
+//         // const fromTokenAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";  //USDC (base)
+//         // const fromDecimals = 6; // USDC decimals
+//         // const fromAmount = "50000000"  // 50 USDC
+//         const fromTokenAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";  //USDC (base)
+//         const fromDecimals = 6; // USDC decimals
+//         const fromAmount = "10000000"  // 10 USDC
         
-        let response = await axios.post(
-            nativeTaoQuoteURL,
-            {
-                fromTokenInfo: {
-                    address: fromTokenAddress,
-                    decimals: fromDecimals,
-                    amount: fromAmount,
-                    chainId: 1        // mainnet
-                }
-            }
-        );
-        console.log("Response data:", response.data);
+//         let response = await axios.post(
+//             nativeTaoQuoteURL,
+//             {
+//                 fromTokenInfo: {
+//                     address: fromTokenAddress,
+//                     decimals: fromDecimals,
+//                     amount: fromAmount,
+//                     chainId: 1        // mainnet
+//                 }
+//             }
+//         );
+//         console.log("Response data:", response.data);
 
-        response = await axios.post(
-            nativeTaoURL,
-            {
-                sender: deployer,
-                receiver: "0x3e86a0c14dcb46407a7c75e12059765b0779688543cf254471aa5a246f175d0e",     //5DUgpSvNvDS5C6aRvrJrtBiKirmVxw6UcnWYoPFDZmwSkVQA
-                fromTokenInfo: {
-                    address: fromTokenAddress,
-                    decimals: fromDecimals,
-                    amount: fromAmount,
-                    chainId: 1        // mainnet
-                },
-                expectedTaoAmount: response.data.expectedTaoAmount,
-                slippage: 200,  // 2%
-            }
-        );
-        console.log("Response data:", response.data);
+//         response = await axios.post(
+//             nativeTaoURL,
+//             {
+//                 sender: deployer,
+//                 receiver: "0x3e86a0c14dcb46407a7c75e12059765b0779688543cf254471aa5a246f175d0e",     //5DUgpSvNvDS5C6aRvrJrtBiKirmVxw6UcnWYoPFDZmwSkVQA
+//                 fromTokenInfo: {
+//                     address: fromTokenAddress,
+//                     decimals: fromDecimals,
+//                     amount: fromAmount,
+//                     chainId: 1        // mainnet
+//                 },
+//                 expectedTaoAmount: response.data.expectedTaoAmount,
+//                 slippage: 200,  // 2%
+//             }
+//         );
+//         console.log("Response data:", response.data);
 
-        const fromToken = await ethers.getContractAt('ERC20', fromTokenAddress);
+//         const fromToken = await ethers.getContractAt('ERC20', fromTokenAddress);
 
-        if ((await fromToken.allowance(deployer, response.data.to)).lt(fromAmount)) {
-            const tx = await fromToken.approve(response.data.to, "115792089237316195423570985008687907853269984665640564039457584007913129639935");
-            await tx.wait(1);
-        }
+//         if ((await fromToken.allowance(deployer, response.data.to)).lt(fromAmount)) {
+//             const tx = await fromToken.approve(response.data.to, "115792089237316195423570985008687907853269984665640564039457584007913129639935");
+//             await tx.wait(1);
+//         }
 
-        await rawTx({
-            value: response.data.hyperlaneFee,
-            to: response.data.to,
-            data: response.data.data,
-            from: deployer
-        } as SimpleTx)
-  });
-});
+//         await rawTx({
+//             value: response.data.hyperlaneFee,
+//             to: response.data.to,
+//             data: response.data.data,
+//             from: deployer
+//         } as SimpleTx)
+//   });
+// });
 
 // describe('SwapAndBridgeAndCall', () => {
 //     it('User calls refund to swap USDC to WTAO and bridge remaining', async () => {
@@ -569,7 +570,7 @@ describe('SwapAndTransfer', () => {
 //         const postData = {
 //             sender: deployer,
 //             receiver: "0x3740eB7e9Bae273bA2088F9688395A666c945082",
-//             amount: "15986510557", // 15.986510557	SN10
+//             // amount: "15986510557", // 15.986510557	SN10
 //             subnetinfo: { netuid: 10, hotkey: "0xacf34e305f1474e4817a66352af736fe6b0bcf5cdfeef18c441e24645c742339" }
 //         };
 
@@ -632,7 +633,8 @@ describe('SwapAndTransfer', () => {
 //             const fromToken = await ethers.getContractAt('ERC20', fromTokenAddress);
 
 //             if ((await fromToken.allowance(deployer, response.data.to)).lt(fromAmount)) {
-//                 await fromToken.approve(response.data.to, "115792089237316195423570985008687907853269984665640564039457584007913129639935");
+//                 const tx = await fromToken.approve(response.data.to, "115792089237316195423570985008687907853269984665640564039457584007913129639935");
+//                 await tx.wait(1);
 //             }
 
 //             await rawTx({
@@ -644,3 +646,45 @@ describe('SwapAndTransfer', () => {
 //         }
 //   });
 // });
+
+describe('SwapAndBridgeAndCallV2', () => {
+  it('Unstake, Bridge', async () => {
+    const { deployer } = await getNamedAccounts();
+    const { rawTx } = deployments;
+
+    let response = await axios.post(
+      reverseQuoteURL, 
+      {
+        subnetuid: 10, 
+        fromAmount: "21383256844", // 18.037488869 SN10
+      }
+    );
+    console.log("Response data:", response.data);
+
+
+    response = await axios.post(
+      reverseCallV2URL, 
+      {
+        sender: deployer,
+        receiver: deployer,
+        subnetInfo: {
+          netuid: 10,
+          hotkey: "0xacf34e305f1474e4817a66352af736fe6b0bcf5cdfeef18c441e24645c742339"
+        },
+        fromAmount: "21383256844", // 18.037488869 SN10
+        expectedToAmount: response.data.expectedToAmount,
+        slippage: 200,  // 2%
+        referralId: deployer
+      }
+    );
+    console.log("Response data:", response.data);
+
+
+    await rawTx({
+      value: response.data.hyperlaneFee,
+      to: response.data.to,
+      data: response.data.data,
+      from: deployer
+    } as SimpleTx)
+  });
+});
