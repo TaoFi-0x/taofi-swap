@@ -48,7 +48,7 @@ const BLOCK_TO_FORK = {
 };
 
 const NETWORKS_RPC_URL = {
-  main: `https://eth-mainnet.alchemyapi.io/v2/${process.env.ALCHEMY_KEY}`,
+  main: `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`,
   base: `https://base-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`,
   btlocal: process.env.BTLOCAL_RPC_URL || `http://localhost:9944/`,
   bittensor:

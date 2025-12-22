@@ -88,7 +88,7 @@ const reverseCallV2URL = "https://taofi-api.web.app/getSellCallV2";
 //         const fromTokenAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";  //USDC (base)
 //         const fromDecimals = 6; // USDC decimals
 //         const fromAmount = "50000000"  // 50 USDC
-//         const subnetids = [120];
+//         const subnetids = [64];
 //         // const subnetids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 96, 97, 98, 104, 105, 106, 107, 108, 111, 114, 120, 123, 124];
 //             // [103, 109]  unnecessary
         
@@ -127,7 +127,7 @@ const reverseCallV2URL = "https://taofi-api.web.app/getSellCallV2";
 //             );
 //             console.log("Response data:", response.data);
 
-//             const fromToken = await ethers.getContractAt('IERC20', fromTokenAddress);
+//             const fromToken = await ethers.getContractAt('ERC20', fromTokenAddress);
 
 //             if ((await fromToken.allowance(deployer, response.data.to)).lt(fromAmount)) {
 //                 await fromToken.approve(response.data.to, "115792089237316195423570985008687907853269984665640564039457584007913129639935");
@@ -244,46 +244,46 @@ const reverseCallV2URL = "https://taofi-api.web.app/getSellCallV2";
 //   });
 // });
 
-// describe('SwapAndBridgeAndCall', () => {
-//   it('Unstake, Bridge - 2', async () => {
-//     const { deployer } = await getNamedAccounts();
-//     const { rawTx } = deployments;
+describe('SwapAndBridgeAndCall', () => {
+  it('Unstake, Bridge - 2', async () => {
+    const { deployer } = await getNamedAccounts();
+    const { rawTx } = deployments;
 
-//     let response = await axios.post(
-//       reverseQuoteURL, 
-//       {
-//         subnetuid: 10, 
-//         fromAmount: "10000000000", // 10 SN10
-//       }
-//     );
-//     console.log("Response data:", response.data);
-
-
-//     response = await axios.post(
-//       reverseCall2URL, 
-//       {
-//         receiver: deployer,
-//         subnetInfo: {
-//           netuid: 10,
-//           hotkey: "0xacf34e305f1474e4817a66352af736fe6b0bcf5cdfeef18c441e24645c742339"
-//         },
-//         fromAmount: "10000000000", // 10 SN10
-//         expectedToAmount: response.data.expectedToAmount,
-//         slippage: 90,  // 0.9%
-//         referralId: deployer
-//       }
-//     );
-//     console.log("Response data:", response.data);
+    let response = await axios.post(
+      reverseQuoteURL, 
+      {
+        subnetuid: 64, 
+        fromAmount: "15000000000", // 15 SN64
+      }
+    );
+    console.log("Response data:", response.data);
 
 
-//     await rawTx({
-//       value: response.data.hyperlaneFee,
-//       to: response.data.to,
-//       data: response.data.data,
-//       from: deployer
-//     } as SimpleTx)
-//   });
-// });
+    response = await axios.post(
+      reverseCall2URL, 
+      {
+        receiver: deployer,
+        subnetInfo: {
+          netuid: 64,
+          hotkey: "0xacf34e305f1474e4817a66352af736fe6b0bcf5cdfeef18c441e24645c742339"
+        },
+        fromAmount: "15000000000", // 15 SN64
+        expectedToAmount: response.data.expectedToAmount,
+        slippage: 90,  // 0.9%
+        referralId: deployer
+      }
+    );
+    console.log("Response data:", response.data);
+
+
+    await rawTx({
+      value: response.data.hyperlaneFee,
+      to: response.data.to,
+      data: response.data.data,
+      from: deployer
+    } as SimpleTx)
+  });
+});
 
 // describe('SwapAndBridgeAndCall', () => {
 //   it('Refund', async () => {
@@ -647,44 +647,44 @@ const reverseCallV2URL = "https://taofi-api.web.app/getSellCallV2";
 //   });
 // });
 
-describe('SwapAndBridgeAndCallV2', () => {
-  it('Unstake, Bridge', async () => {
-    const { deployer } = await getNamedAccounts();
-    const { rawTx } = deployments;
+// describe('SwapAndBridgeAndCallV2', () => {
+//   it('Unstake, Bridge', async () => {
+//     const { deployer } = await getNamedAccounts();
+//     const { rawTx } = deployments;
 
-    let response = await axios.post(
-      reverseQuoteURL, 
-      {
-        subnetuid: 10, 
-        fromAmount: "21383256844", // 18.037488869 SN10
-      }
-    );
-    console.log("Response data:", response.data);
-
-
-    response = await axios.post(
-      reverseCallV2URL, 
-      {
-        sender: deployer,
-        receiver: deployer,
-        subnetInfo: {
-          netuid: 10,
-          hotkey: "0xacf34e305f1474e4817a66352af736fe6b0bcf5cdfeef18c441e24645c742339"
-        },
-        fromAmount: "21383256844", // 18.037488869 SN10
-        expectedToAmount: response.data.expectedToAmount,
-        slippage: 200,  // 2%
-        referralId: deployer
-      }
-    );
-    console.log("Response data:", response.data);
+//     let response = await axios.post(
+//       reverseQuoteURL, 
+//       {
+//         subnetuid: 10, 
+//         fromAmount: "21383256844", // 18.037488869 SN10
+//       }
+//     );
+//     console.log("Response data:", response.data);
 
 
-    await rawTx({
-      value: response.data.hyperlaneFee,
-      to: response.data.to,
-      data: response.data.data,
-      from: deployer
-    } as SimpleTx)
-  });
-});
+//     response = await axios.post(
+//       reverseCallV2URL, 
+//       {
+//         sender: deployer,
+//         receiver: deployer,
+//         subnetInfo: {
+//           netuid: 10,
+//           hotkey: "0xacf34e305f1474e4817a66352af736fe6b0bcf5cdfeef18c441e24645c742339"
+//         },
+//         fromAmount: "21383256844", // 18.037488869 SN10
+//         expectedToAmount: response.data.expectedToAmount,
+//         slippage: 200,  // 2%
+//         referralId: deployer
+//       }
+//     );
+//     console.log("Response data:", response.data);
+
+
+//     await rawTx({
+//       value: response.data.hyperlaneFee,
+//       to: response.data.to,
+//       data: response.data.data,
+//       from: deployer
+//     } as SimpleTx)
+//   });
+// });
