@@ -1,0 +1,36 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "contracts/UniV3PoolFeeClaimer.sol": {
+      "content": "// SPDX-License-Identifier: AGPL-v3.0\npragma solidity ^0.8.21;\n\ninterface IUniswapV3Pool {\n    function protocolFees() external view returns (uint128 token0, uint128 token1);\n    function collectProtocol(\n        address recipient,\n        uint128 amount0Requested,\n        uint128 amount1Requested\n    ) external returns (uint128 amount0, uint128 amount1);\n}\n\ninterface IUniswapV3Factory {\n    function setOwner(address _owner) external;\n}\n\ncontract UniV3PoolFeeClaimer {\n    IUniswapV3Pool private constant POOL =\n        IUniswapV3Pool(0x6647dcbeb030dc8E227D8B1A2Cb6A49F3C887E3c);\n    IUniswapV3Factory private constant FACTORY =\n        IUniswapV3Factory(0x20D0Cdf9004bf56BCa52A25C9288AAd0EbB97D59);\n\n    address public owner;\n\n    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);\n\n    modifier onlyOwner() {\n        require(msg.sender == owner, \"Not owner\");\n        _;\n    }\n\n    constructor() {\n        owner = msg.sender;\n        emit OwnershipTransferred(address(0), msg.sender);\n    }\n\n    function claim(address receiver) external onlyOwner {\n        (uint128 fee0, uint128 fee1) = POOL.protocolFees();\n        POOL.collectProtocol(receiver, fee0, fee1);\n    }\n\n    function setFactoryOwner(address newOwner) external onlyOwner {\n        FACTORY.setOwner(newOwner);\n    }\n\n    /**\n     * @notice Transfer contract ownership\n     */\n    function transferOwnership(address newOwner) external onlyOwner {\n        require(newOwner != address(0), \"Invalid owner\");\n\n        address oldOwner = owner;\n        owner = newOwner;\n\n        emit OwnershipTransferred(oldOwner, newOwner);\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": true,
+      "runs": 1
+    },
+    "evmVersion": "paris",
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "devdoc",
+          "userdoc",
+          "storageLayout",
+          "evm.gasEstimates"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    },
+    "metadata": {
+      "useLiteralContent": true
+    }
+  }
+}
