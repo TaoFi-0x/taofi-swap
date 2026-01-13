@@ -22,7 +22,6 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
 export default func;
 
 func.skip = async (hre: HardhatRuntimeEnvironment) => {
-  return false;
   // localhost
   if (process.env.FORK) {
     return process.env.FORK !== "bittensor";
