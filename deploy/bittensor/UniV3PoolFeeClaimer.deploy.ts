@@ -14,7 +14,7 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   await deploy("UniV3PoolFeeClaimer", {
     contract: "UniV3PoolFeeClaimer",
     from: deployer,
-    args: [],
+    args: ["0x244e6cc02e9a800Ff960d76D6f70C7eAC2641324"],
     log: true
   });
 };
